@@ -16,27 +16,28 @@ def check_revive(dm, is_paused_func):
     return False
 
 def has_non_black_in_region(dm, x1, y1, x2, y2, direction_name, threshold=0.025):
-    """
-    Detect monsters by checking the ratio of non-black pixels in a region.
-    threshold: non-black pixel ratio threshold, default 2.5%
-    """
+    '''
+    Use non-black pixel ratio to determine if there are monsters in the region
+    threshold: Non-black pixel ratio threshold, default 2.5%
+    '''
     non_black_count = 0
     total_points = 0
-    step = 2
+    step = 5
+    get_color = dm.GetColor  # Local reference cache for faster loop execution
     for py in range(y1, y2 + 1, step):
         for px in range(x1, x2 + 1, step):
-            color = dm.GetColor(px, py)
+            color = get_color(px, py)
             total_points += 1
             if color != '080808' and color != '':
                 non_black_count += 1
-                
+
     if total_points == 0:
         return False
     ratio = non_black_count / total_points
     has_non_black = ratio > threshold
     if direction_name:
-        status = '[MONSTER]' if has_non_black else '[NO MONSTER]'
-        print(f"   └ {direction_name:4} region ({x1},{y1})-({x2},{y2}) → {status}  (non-black: {non_black_count}/{total_points} ≈ {ratio:.1%})")
+        status = '[Monsters Found]' if has_non_black else '[No Monsters]'
+        print(f'''   └ {direction_name:4} Region ({x1},{y1})-({x2},{y2}) → {status}  (Non-black: {non_black_count}/{total_points} ≈ {ratio:.1%})''')
     return has_non_black
 
 def check_formation(dm, region1, region2):
@@ -59,6 +60,12 @@ def execute_skill_loop(dm):
     dm.Delay(50)
     dm.KeyPress(69)
     dm.Delay(50)
+    dm.KeyPress(52)
+    dm.Delay(50)
+    dm.KeyPress(69)
+    dm.Delay(50)
+    dm.KeyPress(69)
+    dm.Delay(50)
 
 # Battle Strategies mapping (direction, monster_dir) -> action function
 
@@ -67,13 +74,13 @@ def strategy_east_south(dm):
     time.sleep(0.53)
     dm.MoveTo(511, 341)
     dm.Delay(50)
-    dm.MoveTo(904, 472)
+    dm.MoveTo(804, 372)
     dm.Delay(50)
     dm.KeyPress(81)
     dm.Delay(50)
     dm.KeyPress(87)
     dm.Delay(50)
-    dm.MoveTo(650, 568)
+    dm.MoveTo(550, 400)
     dm.Delay(200)
     dm.KeyDown(40)
     time.sleep(0.3)
@@ -81,6 +88,7 @@ def strategy_east_south(dm):
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
+    execute_skill_loop(dm)
    
 
 def strategy_east_west(dm):
@@ -92,11 +100,13 @@ def strategy_east_west(dm):
     dm.Delay(50)
     dm.KeyPress(87)
     dm.Delay(50)
-    dm.MoveTo(153, 358)
+    dm.MoveTo(100, 358)
     dm.Delay(50)
     dm.KeyDown(37)
     time.sleep(0.15)
     dm.KeyUp(37)
+    dm.Delay(50)
+    execute_skill_loop(dm)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -113,7 +123,9 @@ def strategy_east_north(dm):
     dm.Delay(50)
     dm.KeyPress(87)
     dm.Delay(50)
-    dm.MoveTo(662, 76)
+    dm.MoveTo(762, 176)
+    dm.Delay(50)
+    execute_skill_loop(dm)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -132,11 +144,13 @@ def strategy_south_east(dm):
     dm.Delay(50)
     dm.MoveTo(1000, 478)
     time.sleep(0.33)
-    dm.MoveTo(178, 476)
+    dm.MoveTo(200, 576)
     dm.Delay(50)
     dm.KeyDown(39)
     time.sleep(0.35)
     dm.KeyUp(39)
+    dm.Delay(50)
+    execute_skill_loop(dm)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -159,6 +173,8 @@ def strategy_south_west(dm):
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
    
 
 def strategy_south_north(dm):
@@ -172,7 +188,9 @@ def strategy_south_north(dm):
     dm.Delay(50)
     dm.KeyPress(87)
     dm.Delay(50)
-    dm.MoveTo(477, 250)
+    dm.MoveTo(577, 450)
+    dm.Delay(50)
+    execute_skill_loop(dm)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -195,6 +213,8 @@ def strategy_west_east(dm):
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
    
 
 def strategy_west_south(dm):
@@ -207,6 +227,8 @@ def strategy_west_south(dm):
     dm.KeyPress(81)
     dm.Delay(50)
     dm.KeyPress(87)
+    dm.Delay(50)
+    execute_skill_loop(dm)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -224,6 +246,8 @@ def strategy_west_north(dm):
     dm.KeyPress(87)
     dm.Delay(50)
     dm.MoveTo(154, 101)
+    dm.Delay(50)
+    execute_skill_loop(dm)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -246,6 +270,8 @@ def strategy_north_east(dm):
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
    
 
 def strategy_north_south(dm):
@@ -261,17 +287,35 @@ def strategy_north_south(dm):
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
    
 
 def strategy_north_west(dm):
-    dm.KeyPress(27)
-    dm.Delay(70)
-    dm.KeyPress(27)
-    dm.Delay(70)
-    dm.KeyPress(27)
-    dm.Delay(70)
-    dm.KeyPress(27)
-    dm.Delay(70)
+    dm.MoveTo(483, 788)
+    time.sleep(0.66)
+    dm.MoveTo(570, 229)
+    dm.Delay(50)
+    dm.MoveTo(201, 80)
+    dm.Delay(50)
+    dm.KeyPress(81)
+    dm.Delay(50)
+    dm.KeyPress(87)
+    dm.Delay(50)
+    dm.MoveTo(40, 100)
+    dm.Delay(50)
+    dm.KeyDown(40)
+    time.sleep(0.1)
+    dm.KeyUp(40)
+    dm.Delay(50)
+    dm.KeyDown(37)
+    time.sleep(0.1)
+    dm.KeyUp(37)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
 
 STRATEGIES = {
     ('East', 'South'): strategy_east_south,

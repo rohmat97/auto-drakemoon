@@ -5,6 +5,7 @@ import sys
 import time
 import keyboard
 import winsound
+import gc
 from tkinter import messagebox
 
 from PyGameAuto.Dm import RegDm
@@ -125,7 +126,7 @@ def find_and_engage_monster(dm):
         if check_anti_cheat(dm):
             print('Anti-cheat (horse stamp) detected, pausing script')
             play_alert_sound(dm)
-            keyboard.press_and_release('f10')
+            keyboard.press_and_release('page up')
             return False
 
         if is_in_battle(dm):
@@ -165,8 +166,8 @@ def handle_battle(dm):
             print('Pressing Esc 4 times to exit')
             for _ in range(4):
                 dm.KeyPress(27)
-                dm.Delay(70)
-            time.sleep(3)
+                dm.Delay(30)
+                time.sleep(0.1)
             break
 
         for direction, regions in FORMATION_REGIONS.items():
@@ -179,10 +180,10 @@ def handle_battle(dm):
 
                 for monster_dir in MONSTER_CHECKS[direction]:
                     (x1, y1, x2, y2) = MONSTER_DIRECTION_REGIONS[monster_dir]
-                    if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir, threshold=0.03):
+                    if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
                         print(f'Executing strategy → Formation: {direction} | Monster: {monster_dir}')
                         execute_battle_strategy(dm, direction, monster_dir)
-                        time.sleep(8)
+                        time.sleep(12)
                         action_executed = True
                         break
 
@@ -222,23 +223,33 @@ def run_main_script():
 
     paused = False
 
-    def on_f10_press(event=None):
+    def on_page_up_press(event=None):
         global paused
-        if event.name == 'f10':
+        if event.name == 'page up':
             paused = not paused
             if paused:
-                print('All commands paused, press F10 to resume...')
+                print('All commands paused, press Page Up to resume...')
                 dm.UnBindWindow()
             else:
                 print('All commands resumed...')
                 bind_game_window(dm, hwnd)
 
-    keyboard.on_press_key('f10', on_f10_press)
+    keyboard.on_press_key('page up', on_page_up_press)
+
+    # Disable automatic GC to avoid stutters during time-sensitive key presses
+    gc.disable()
+    
+    # Perform initial collection
+    gc.collect()
 
     try:
+        loop_counter = 0
+        battle_counter = 0
+        last_refresh_time = time.time()
         while True:
             check_revive(dm, is_paused)
             if paused:
+                gc.collect()  # Collect when paused
                 time.sleep(0.5)
                 continue
 
@@ -246,15 +257,32 @@ def run_main_script():
                 paused = True
                 continue
 
+            # Refresh game window binding state every 5 battles by pressing page up twice
+            if battle_counter >= 5:
+                print(f'\n--- [5-Battle Cycle] Refreshing window binding state (Battle Count: {battle_counter}) ---')
+                keyboard.press_and_release('page up')
+                time.sleep(0.1)
+                keyboard.press_and_release('page up')
+                time.sleep(0.1)
+                battle_counter = 0
+
             battle_entered = find_and_engage_monster(dm)
             if battle_entered or is_in_battle(dm):
                 handle_battle(dm)
+                gc.collect()  # Clean up COM references and memory after battle
+                battle_counter += 1
+
+            loop_counter += 1
+            if loop_counter % 10 == 0:
+                gc.collect()  # Periodically clean up during overworld exploration
 
             time.sleep(1)
     except KeyboardInterrupt:
         print('Program interrupted.')
     finally:
         keyboard.unhook_all()
+        gc.enable()  # Re-enable GC on exit
+        gc.collect()
         print('Cleanup complete, program exited.')
 
 
