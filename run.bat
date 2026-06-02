@@ -11,6 +11,7 @@ if %errorlevel% neq 0 (
 cd /d "%~dp0"
 
 echo Running Drake.py...
+set PYTHONIOENCODING=utf-8
 py -3.12-32 Drake.py
 
 pause
