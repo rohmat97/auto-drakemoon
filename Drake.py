@@ -33,6 +33,7 @@ DRAKE_IMAGES = '|'.join([
 # Pause state  (shared via closure / global)
 # ---------------------------------------------------------------------------
 paused = False
+last_monster_seen_time = time.time()
 
 
 def is_paused():
@@ -49,7 +50,8 @@ def check_food(dm):
     (_, x_bread, _) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
 
     if x_food > 0:
-        print('Satiety is sufficient')
+        # Satiety is sufficient, no print to avoid console spam
+        pass
     elif x_bread > 0:
         print('Replenishing satiety')
         dm.KeyDown(18)
@@ -102,19 +104,23 @@ def is_in_battle(dm):
 # Overworld: find and engage a monster
 # ---------------------------------------------------------------------------
 def find_and_engage_monster(dm):
+    global last_monster_seen_time
     """Search for a monster on the overworld and attempt to enter battle.
     Returns True if battle was entered, False otherwise."""
     (_, x, y) = dm.FindPic(96, 84, 964, 524, GHOST_IMAGES, '050505', 0.8, 0)
     if x <= 0:
+        if time.time() - last_monster_seen_time > 3.0:
+            print('No monsters found for 3 seconds, pressing Esc to close any open dialogs')
+            dm.KeyPress(27)
+            last_monster_seen_time = time.time()
         return False
 
-    check_revive(dm, is_paused)
+    last_monster_seen_time = time.time()
     print(f'Monster found at coords: ({x}, {y})')
     dm.MoveTo(x, y)
     dm.Delay(150)
     dm.RightClick()
     dm.Delay(300)
-    check_revive(dm, is_paused)
 
     check_dead_mercenary(dm)
 
@@ -126,14 +132,14 @@ def find_and_engage_monster(dm):
         if check_anti_cheat(dm):
             print('Anti-cheat (horse stamp) detected, pausing script')
             play_alert_sound(dm)
-            keyboard.press_and_release('page up')
+            # keyboard.press_and_release('page up')
             return False
 
         if is_in_battle(dm):
             print('✅ Successfully entered battle screen')
             return True
 
-        if time.time() - start_time > 1.2 and attempt == 1:
+        if time.time() - start_time > 0.5 and attempt == 1:
             print('Battle not entered, right-clicking monster again...')
             dm.MoveTo(x, y)
             dm.Delay(100)
@@ -143,8 +149,9 @@ def find_and_engage_monster(dm):
 
         time.sleep(0.08)
 
-    print('⚠️  Two clicks failed to enter battle, skipping this monster')
-    time.sleep(0.8)
+    print('⚠️  Two clicks failed to enter battle, skipping this monster, pressing Esc')
+    dm.KeyPress(27)
+    time.sleep(2)
     return False
 
 
@@ -247,36 +254,43 @@ def run_main_script():
         battle_counter = 0
         last_refresh_time = time.time()
         while True:
-            check_revive(dm, is_paused)
             if paused:
                 gc.collect()  # Collect when paused
                 time.sleep(0.5)
                 continue
 
-            if check_food(dm):
-                paused = True
-                continue
-
-            # Refresh game window binding state every 5 battles by pressing page up twice
-            if battle_counter >= 5:
-                print(f'\n--- [5-Battle Cycle] Refreshing window binding state (Battle Count: {battle_counter}) ---')
-                keyboard.press_and_release('page up')
-                time.sleep(0.1)
-                keyboard.press_and_release('page up')
-                time.sleep(0.1)
-                battle_counter = 0
-
             battle_entered = find_and_engage_monster(dm)
             if battle_entered or is_in_battle(dm):
                 handle_battle(dm)
                 gc.collect()  # Clean up COM references and memory after battle
+
+                # Check revive and food after battle
+                check_revive(dm, is_paused)
+                if check_food(dm):
+                    paused = True
+                    print('All commands paused, press Page Up to resume...')
+                    dm.UnBindWindow()
+                    continue
+
                 battle_counter += 1
+                print(f'Battles completed: {battle_counter}/5')
+                if battle_counter >= 5:
+                    print('Reached 5 battles. Restarting application...')
+                    dm.UnBindWindow()
+                    time.sleep(1)
+                    if getattr(sys, 'frozen', None):
+                        import subprocess
+                        cwd = os.path.dirname(os.path.abspath(sys.executable))
+                        subprocess.Popen([sys.executable], cwd=cwd)
+                        sys.exit(0)
+                    else:
+                        sys.exit(5)  # Exit code 5 signals run.bat to restart
 
             loop_counter += 1
-            if loop_counter % 10 == 0:
+            if loop_counter % 50 == 0:
                 gc.collect()  # Periodically clean up during overworld exploration
 
-            time.sleep(1)
+            time.sleep(0.15)
     except KeyboardInterrupt:
         print('Program interrupted.')
     finally:
