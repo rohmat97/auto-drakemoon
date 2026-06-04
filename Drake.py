@@ -25,9 +25,7 @@ from combat import (
 GHOST_IMAGES = '|'.join([f'ghosttur{i}.bmp' for i in range(1, 16)])
 # GHOST_IMAGES = '|'.join([f'elder{i}.bmp' for i in range(1, 12)])
 DRAKE_IMAGES = '|'.join([
-    'drake1.bmp', 'drake2.bmp', 'drake3.bmp', 'drake5.bmp',
-    'drake6.bmp', 'drake7.bmp', 'drake8.bmp', 'drake9.bmp',
-    'drake10.bmp', 'drake11.bmp', 'drake88.bmp',
+    rf'drake\drake{i}.bmp' for i in range(1, 12)
 ])
 
 # ---------------------------------------------------------------------------
