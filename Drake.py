@@ -66,15 +66,38 @@ def check_food(dm):
     return False
 
 
+
 def check_dead_mercenary(dm):
     """If a dead mercenary is detected, consume half-chicken soup."""
     (_, x, _) = dm.FindPic(0, 0, 108, 499, DRAKE_IMAGES, '050505', 0.8, 0)
     if x > 0:
-        print('Dead mercenary detected, consuming half-chicken soup')
-        dm.KeyDown(18)
-        dm.KeyPress(49)
-        dm.KeyPress(49)
-        dm.KeyUp(18)
+        print('Dead mercenary detected, opening inventory to revive...')
+        # Press 'i' to open inventory
+        dm.KeyPress(73)
+        dm.Delay(500)
+        
+        # Save a debug screen capture of what DaMo actually sees
+        debug_path = os.path.join(dm.getPath(), 'debug_inventory.bmp')
+        dm.Capture(0, 0, 1024, 768, debug_path)
+        print(f"Debug screen capture saved to: {debug_path}")
+        
+        # Search for revival.bmp in main character's inventory first
+        (_, rx_main, ry_main) = dm.FindPic(0, 0, 1024, 768, 'revival.bmp', '101010', 0.7, 0)
+        print(f"Before selection loop -> Found revival.bmp at: ({rx_main}, {ry_main})")
+        
+        # Select and revive each mercenary from 2 to 12: 2, 3, 4, 5, 6, 7, 8, 9, 0, -, =
+        keys = [50, 51, 52, 53, 54, 55, 56, 57, 48, 189, 187]
+        for key in keys:
+            dm.KeyPress(key)
+            dm.Delay(100)  # Increased delay to allow inventory UI to load
+            dm.MoveTo(600,150)
+            dm.Delay(100)
+            dm.RightClick()
+            dm.Delay(100)
+        
+        # Press 'i' again to close inventory
+        dm.KeyPress(73)
+        dm.Delay(500)
 
 
 def check_anti_cheat(dm):
