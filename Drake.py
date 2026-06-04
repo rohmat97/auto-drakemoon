@@ -22,8 +22,8 @@ from combat import (
 # ---------------------------------------------------------------------------
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
-GHOST_IMAGES = '|'.join([f'ghosttur{i}.bmp' for i in range(1, 16)])
-# GHOST_IMAGES = '|'.join([f'elder{i}.bmp' for i in range(1, 12)])
+# GHOST_IMAGES = '|'.join([f'ghosttur{i}.bmp' for i in range(1, 16)])
+GHOST_IMAGES = '|'.join([f'a{i}.bmp' for i in range(1, 30)])
 DRAKE_IMAGES = '|'.join([
     'drake1.bmp', 'drake2.bmp', 'drake3.bmp', 'drake5.bmp',
     'drake6.bmp', 'drake7.bmp', 'drake8.bmp', 'drake9.bmp',
@@ -108,7 +108,8 @@ def find_and_engage_monster(dm):
     global last_monster_seen_time
     """Search for a monster on the overworld and attempt to enter battle.
     Returns True if battle was entered, False otherwise."""
-    (_, x, y) = dm.FindPic(96, 84, 964, 524, GHOST_IMAGES, '050505', 0.8, 0)
+    # (_, x, y) = dm.FindPic(96, 84, 964, 524, GHOST_IMAGES, '050505', 0.8, 0)
+    (_, x, y) = dm.FindPic(10, 50, 1010, 600, GHOST_IMAGES, '050505', 0.8, 0)
     if x <= 0:
         if time.time() - last_monster_seen_time > 3.0:
             print('No monsters found for 3 seconds, pressing Esc to close any open dialogs')
