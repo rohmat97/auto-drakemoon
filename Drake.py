@@ -23,11 +23,9 @@ from combat import (
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
 # GHOST_IMAGES = '|'.join([f'ghosttur{i}.bmp' for i in range(1, 16)])
-GHOST_IMAGES = '|'.join([f'a{i}.bmp' for i in range(1, 30)])
+GHOST_IMAGES = '|'.join([rf'ancient_wu\a{i}.bmp' for i in range(1, 39)])
 DRAKE_IMAGES = '|'.join([
-    'drake1.bmp', 'drake2.bmp', 'drake3.bmp', 'drake5.bmp',
-    'drake6.bmp', 'drake7.bmp', 'drake8.bmp', 'drake9.bmp',
-    'drake10.bmp', 'drake11.bmp', 'drake88.bmp',
+    rf'drake\drake{i}.bmp' for i in range(1, 12)
 ])
 
 # ---------------------------------------------------------------------------
@@ -70,11 +68,29 @@ def check_dead_mercenary(dm):
     """If a dead mercenary is detected, consume half-chicken soup."""
     (_, x, _) = dm.FindPic(0, 0, 108, 499, DRAKE_IMAGES, '050505', 0.8, 0)
     if x > 0:
-        print('Dead mercenary detected, consuming half-chicken soup')
-        dm.KeyDown(18)
-        dm.KeyPress(49)
-        dm.KeyPress(49)
-        dm.KeyUp(18)
+        print('Dead mercenary detected, opening inventory to revive...')
+        # Press 'i' to open inventory
+        dm.KeyPress(73)
+        dm.Delay(500)
+        
+        # Select and revive each mercenary from 2 to 12: 2, 3, 4, 5, 6, 7, 8, 9, 0, -, =
+        keys = [50, 51, 52, 53, 54, 55, 56, 57, 48, 189, 187]
+        for key in keys:
+            dm.KeyPress(key)
+            dm.Delay(150)
+            
+            # Search for revival.bmp in the inventory
+            (_, rx, ry) = dm.FindPic(0, 0, 1024, 768, 'revival.bmp', '050505', 0.8, 0)
+            print(rx,ry)
+            if rx > 0:
+                dm.MoveTo(rx, ry)
+                dm.Delay(100)
+                dm.RightClick()
+                dm.Delay(200)
+        
+        # Press 'i' again to close inventory
+        dm.KeyPress(73)
+        dm.Delay(500)
 
 
 def check_anti_cheat(dm):
