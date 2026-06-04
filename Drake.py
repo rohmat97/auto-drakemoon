@@ -23,6 +23,7 @@ from combat import (
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
 GHOST_IMAGES = '|'.join([f'ghosttur{i}.bmp' for i in range(1, 16)])
+# GHOST_IMAGES = '|'.join([f'elder{i}.bmp' for i in range(1, 12)])
 DRAKE_IMAGES = '|'.join([
     'drake1.bmp', 'drake2.bmp', 'drake3.bmp', 'drake5.bmp',
     'drake6.bmp', 'drake7.bmp', 'drake8.bmp', 'drake9.bmp',
@@ -164,7 +165,6 @@ def handle_battle(dm):
     action_executed = False
 
     while True:
-        check_revive(dm, is_paused)
         if paused:
             time.sleep(1)
             continue
@@ -175,6 +175,23 @@ def handle_battle(dm):
                 dm.KeyPress(27)
                 dm.Delay(30)
                 time.sleep(0.1)
+            
+            # Wait for battle screen to actually end (i.e. is_in_battle returns False)
+            print('Waiting for battle screen to close...')
+            start_wait = time.time()
+            battle_closed = False
+            while time.time() - start_wait < 5.0:  # Timeout after 5 seconds
+                if not is_in_battle(dm):
+                    battle_closed = True
+                    break
+                time.sleep(0.2)
+            if battle_closed:
+                print('Battle screen ended')
+            else:
+                print('Warning: Battle screen did not close within timeout')
+            
+            check_revive(dm, is_paused)
+            check_dead_mercenary(dm)
             break
 
         for direction, regions in FORMATION_REGIONS.items():
@@ -185,14 +202,25 @@ def handle_battle(dm):
                 print(f'Formation position detected: {direction}')
                 time.sleep(0.1)
 
+                detected_monsters = []
                 for monster_dir in MONSTER_CHECKS[direction]:
                     (x1, y1, x2, y2) = MONSTER_DIRECTION_REGIONS[monster_dir]
                     if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
+                        detected_monsters.append(monster_dir)
+
+                if detected_monsters:
+                    print(f'Monsters detected in directions: {detected_monsters}')
+                    for idx, monster_dir in enumerate(detected_monsters):
                         print(f'Executing strategy → Formation: {direction} | Monster: {monster_dir}')
                         execute_battle_strategy(dm, direction, monster_dir)
-                        time.sleep(12)
-                        action_executed = True
-                        break
+                        if idx < len(detected_monsters) - 1:
+                            time.sleep(2.0)  # Delay between executing strategies
+
+                    # Adjust final sleep time depending on how many directions were hit
+                    final_sleep = max(12.0 - (len(detected_monsters) - 1) * 4.0, 4.0)
+                    time.sleep(final_sleep)
+                    action_executed = True
+                    break
 
         # Check if battle ended
         if not is_in_battle(dm):
