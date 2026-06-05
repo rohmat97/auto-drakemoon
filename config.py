@@ -9,11 +9,14 @@ DM_REG_KEY = 'hkaiscript44c3dffb21a432409f0d422e1a8dcc35'
 DM_REG_CODE = 'sqDvF'
 
 # Battle regions and configurations
+# NOTE: The order of keys here is critical! 
+# 'East''s detection regions (top-right and middle-right) can also be black (false positive) when starting at 'South'.
+# Placing 'South', 'West', and 'North' first prevents these false positives since their checks are more unique.
 FORMATION_REGIONS = {
-    'East': [(949, 140, 994, 257), (985, 437, 1002, 463)],
     'South': [(940, 461, 998, 497), (23, 494, 66, 558)],
     'West': [(13, 105, 33, 165), (14, 560, 48, 623)],
-    'North': [(935, 140, 1004, 248), (31, 163, 117, 280)]
+    'North': [(935, 140, 1004, 248), (31, 163, 117, 280)],
+    'East': [(949, 140, 994, 257), (985, 437, 1002, 463)]
 }
 
 MONSTER_DIRECTION_REGIONS = {

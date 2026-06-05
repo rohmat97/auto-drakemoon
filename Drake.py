@@ -24,9 +24,7 @@ from combat import (
 # ---------------------------------------------------------------------------
 GHOST_IMAGES = '|'.join([rf'ghost_turtle\ghosttur{i}.bmp' for i in range(1, 16)])
 # GHOST_IMAGES = '|'.join([f'elder{i}.bmp' for i in range(1, 12)])
-DRAKE_IMAGES = '|'.join([
-    rf'drake\drake{i}.bmp' for i in range(1, 12)
-])
+DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 12)])
 
 # ---------------------------------------------------------------------------
 # Pause state  (shared via closure / global)
