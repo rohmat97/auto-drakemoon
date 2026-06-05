@@ -22,7 +22,7 @@ from combat import (
 # ---------------------------------------------------------------------------
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
-MONSTER_IMAGES = '|'.join([rf'mythic_beast\mythic{i}.bmp' for i in range(1, 49)])
+MONSTER_IMAGES = '|'.join([rf'mythic_beast\mythic{i}.bmp' for i in range(1, 41)])
 # MONSTER_IMAGES = '|'.join([f'elder{i}.bmp' for i in range(1, 12)])
 DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 17)])
 
@@ -130,10 +130,10 @@ def find_and_engage_monster(dm):
     check_dead_mercenary(dm)
     (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
     if x <= 0:
-        if time.time() - last_monster_seen_time > 10.0:
-            print('No monsters found for 10 seconds, pressing Esc to close any open dialogs')
-            dm.KeyPress(27)
-            last_monster_seen_time = time.time()
+        # if time.time() - last_monster_seen_time > 10.0:
+        #     print('No monsters found for 10 seconds, pressing Esc to close any open dialogs')
+        #     dm.KeyPress(27)
+        #     last_monster_seen_time = time.time()
         return False
 
     last_monster_seen_time = time.time()
@@ -308,9 +308,9 @@ def run_main_script():
                     continue
 
                 battle_counter += 1
-                print(f'Battles completed: {battle_counter}/10')
-                if battle_counter >= 10:
-                    print('Reached 10 battles. Restarting application...')
+                print(f'Battles completed: {battle_counter}/2')
+                if battle_counter >= 2:
+                    print('Reached 2 battles. Restarting application...')
                     dm.UnBindWindow()
                     time.sleep(0.5)
                     if getattr(sys, 'frozen', None):
