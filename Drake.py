@@ -22,9 +22,9 @@ from combat import (
 # ---------------------------------------------------------------------------
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
-GHOST_IMAGES = '|'.join([rf'ghost_turtle\ghosttur{i}.bmp' for i in range(1, 16)])
-# GHOST_IMAGES = '|'.join([f'elder{i}.bmp' for i in range(1, 12)])
-DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 16)])
+MONSTER_IMAGES = '|'.join([rf'mythic_beast\mythic{i}.bmp' for i in range(1, 49)])
+# MONSTER_IMAGES = '|'.join([f'elder{i}.bmp' for i in range(1, 12)])
+DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 17)])
 
 # ---------------------------------------------------------------------------
 # Pause state  (shared via closure / global)
@@ -128,7 +128,7 @@ def find_and_engage_monster(dm):
     """Search for a monster on the overworld and attempt to enter battle.
     Returns True if battle was entered, False otherwise."""
     check_dead_mercenary(dm)
-    (_, x, y) = dm.FindPic(96, 84, 964, 524, GHOST_IMAGES, '050505', 0.8, 0)
+    (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
     if x <= 0:
         if time.time() - last_monster_seen_time > 10.0:
             print('No monsters found for 10 seconds, pressing Esc to close any open dialogs')
