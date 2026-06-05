@@ -24,7 +24,7 @@ from combat import (
 # ---------------------------------------------------------------------------
 GHOST_IMAGES = '|'.join([rf'ghost_turtle\ghosttur{i}.bmp' for i in range(1, 16)])
 # GHOST_IMAGES = '|'.join([f'elder{i}.bmp' for i in range(1, 12)])
-DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 12)])
+DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 16)])
 
 # ---------------------------------------------------------------------------
 # Pause state  (shared via closure / global)
@@ -65,7 +65,7 @@ def check_food(dm):
 
 def check_dead_mercenary(dm):
     """If a dead mercenary is detected, consume half-chicken soup."""
-    (_, x, _) = dm.FindPic(0, 0, 108, 499, DRAKE_IMAGES, '050505', 0.8, 0)
+    (_, x, _) = dm.FindPic(0, 0, 110, 650, DRAKE_IMAGES, '050505', 0.8, 0)
     if x > 0:
         print('Dead mercenary detected, opening inventory to revive...')
         # Press 'i' to open inventory
@@ -127,10 +127,11 @@ def find_and_engage_monster(dm):
     global last_monster_seen_time
     """Search for a monster on the overworld and attempt to enter battle.
     Returns True if battle was entered, False otherwise."""
+    check_dead_mercenary(dm)
     (_, x, y) = dm.FindPic(96, 84, 964, 524, GHOST_IMAGES, '050505', 0.8, 0)
     if x <= 0:
-        if time.time() - last_monster_seen_time > 3.0:
-            print('No monsters found for 3 seconds, pressing Esc to close any open dialogs')
+        if time.time() - last_monster_seen_time > 10.0:
+            print('No monsters found for 10 seconds, pressing Esc to close any open dialogs')
             dm.KeyPress(27)
             last_monster_seen_time = time.time()
         return False
@@ -142,8 +143,6 @@ def find_and_engage_monster(dm):
     dm.RightClick()
     dm.Delay(300)
 
-    check_dead_mercenary(dm)
-
     print('Waiting to enter battle screen... (max 3s)')
     start_time = time.time()
     attempt = 1
@@ -152,7 +151,8 @@ def find_and_engage_monster(dm):
         if check_anti_cheat(dm):
             print('Anti-cheat (horse stamp) detected, pausing script')
             play_alert_sound(dm)
-            # keyboard.press_and_release('page up')
+            keyboard.press_and_release('page up')
+            time.sleep(1)
             return False
 
         if is_in_battle(dm):
@@ -169,9 +169,7 @@ def find_and_engage_monster(dm):
 
         time.sleep(0.08)
 
-    print('⚠️  Two clicks failed to enter battle, skipping this monster, pressing Esc')
-    dm.KeyPress(27)
-    time.sleep(2)
+    time.sleep(0.5)
     return False
 
 
@@ -221,34 +219,24 @@ def handle_battle(dm):
                 print(f'Formation position detected: {direction}')
                 time.sleep(0.1)
 
-                detected_monsters = []
                 for monster_dir in MONSTER_CHECKS[direction]:
                     (x1, y1, x2, y2) = MONSTER_DIRECTION_REGIONS[monster_dir]
                     if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
-                        detected_monsters.append(monster_dir)
-
-                if detected_monsters:
-                    print(f'Monsters detected in directions: {detected_monsters}')
-                    for idx, monster_dir in enumerate(detected_monsters):
                         print(f'Executing strategy → Formation: {direction} | Monster: {monster_dir}')
                         execute_battle_strategy(dm, direction, monster_dir)
-                        if idx < len(detected_monsters) - 1:
-                            time.sleep(2.0)  # Delay between executing strategies
-
-                    # Adjust final sleep time depending on how many directions were hit
-                    final_sleep = max(12.0 - (len(detected_monsters) - 1) * 4.0, 4.0)
-                    time.sleep(final_sleep)
-                    action_executed = True
-                    break
+                        time.sleep(12)
+                        action_executed = True
+                        break
 
         # Check if battle ended
         if not is_in_battle(dm):
+            action_executed = True
             print('Battle screen ended')
             check_revive(dm, is_paused)
             check_dead_mercenary(dm)
             break
         else:
-            time.sleep(1.0)
+            time.sleep(0.5)
 
 
 # ---------------------------------------------------------------------------
@@ -320,11 +308,11 @@ def run_main_script():
                     continue
 
                 battle_counter += 1
-                print(f'Battles completed: {battle_counter}/5')
-                if battle_counter >= 5:
-                    print('Reached 5 battles. Restarting application...')
+                print(f'Battles completed: {battle_counter}/10')
+                if battle_counter >= 10:
+                    print('Reached 10 battles. Restarting application...')
                     dm.UnBindWindow()
-                    time.sleep(1)
+                    time.sleep(0.5)
                     if getattr(sys, 'frozen', None):
                         import subprocess
                         cwd = os.path.dirname(os.path.abspath(sys.executable))
