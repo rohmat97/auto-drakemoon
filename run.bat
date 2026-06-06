@@ -18,10 +18,10 @@ py -3.12-32 Drake.py
 :: Check if the Python script requested a restart (exit code 5)
 if %errorlevel% equ 5 (
     echo.
-    echo Reached 5 battles limit. Restarting Drake.py in 5 seconds...
+    echo Reached 5 battles limit. Restarting Drake.py in a new console in 5 seconds...
     timeout /t 5
-    echo.
-    goto loop
+    start run.bat
+    exit
 )
 
 pause
