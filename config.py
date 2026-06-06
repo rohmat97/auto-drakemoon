@@ -20,8 +20,8 @@ FORMATION_REGIONS = {
 }
 
 MONSTER_DIRECTION_REGIONS = {
-    'East': (166, 721, 204, 759),
-    'South': (105, 754, 157, 785),
+    'East': (172, 713, 189, 722),
+    'South': (117, 730, 136, 739),
     'West': (76, 714, 83, 728),
     'North': (121, 689, 136, 704)
 }
