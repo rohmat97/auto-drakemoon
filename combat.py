@@ -15,14 +15,14 @@ def check_revive(dm, is_paused_func):
         return True
     return False
 
-def has_non_black_in_region(dm, x1, y1, x2, y2, direction_name, threshold=0.025):
+def has_non_black_in_region(dm, x1, y1, x2, y2, direction_name, threshold=0.015):
     '''
     Use non-black pixel ratio to determine if there are monsters in the region
-    threshold: Non-black pixel ratio threshold, default 2.5%
+    threshold: Non-black pixel ratio threshold, default 1.5%
     '''
     non_black_count = 0
     total_points = 0
-    step = 2
+    step = 10
     get_color = dm.GetColor  # Local reference cache for faster loop execution
     for py in range(y1, y2 + 1, step):
         for px in range(x1, x2 + 1, step):
@@ -215,8 +215,8 @@ def strategy_south_north(dm):
     dm.KeyPress(81)
     dm.Delay(50)
     dm.KeyPress(87)
-    # dm.Delay(50)
-    # dm.MoveTo(477, 164)
+    dm.Delay(50)
+    dm.MoveTo(477, 164)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -233,7 +233,7 @@ def strategy_west_east(dm):
     dm.Delay(50)
     dm.KeyPress(87)
     dm.Delay(50)
-    dm.MoveTo(513, 375)
+    dm.MoveTo(400, 375)
     dm.Delay(50)
     dm.KeyDown(39)
     time.sleep(0.4)
