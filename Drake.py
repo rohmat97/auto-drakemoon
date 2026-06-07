@@ -68,12 +68,9 @@ def check_dead_mercenary(dm):
     (_, x, _) = dm.FindPic(0, 0, 110, 650, DRAKE_IMAGES, '050505', 0.8, 0)
     if x > 0:
         print('Dead mercenary detected, opening inventory to revive...')
-        # Check if inventory is already open
-        (_, bx, _) = dm.FindPic(0, 0, 1024, 768, 'bag.bmp', '050505', 0.8, 0)
-        if bx <= 0:
-            print('Inventory not open, pressing "i" to open...')
-            dm.KeyPress(73)
-            dm.Delay(500)
+        # Press 'i' to open inventory
+        dm.KeyPress(73)
+        dm.Delay(500)
         
         # Save a debug screen capture of what DaMo actually sees
         debug_path = os.path.join(dm.getPath(), 'debug_inventory.bmp')
@@ -94,12 +91,9 @@ def check_dead_mercenary(dm):
             dm.RightClick()
             dm.Delay(100)
         
-        # Press 'i' again to close inventory if it is detected open
-        (_, bx_end, _) = dm.FindPic(0, 0, 1024, 768, 'bag.bmp', '050505', 0.8, 0)
-        if bx_end > 0:
-            print('Inventory still open, pressing "i" to close...')
-            dm.KeyPress(73)
-            dm.Delay(500)
+        # Press 'i' again to close inventory
+        dm.KeyPress(73)
+        dm.Delay(500)
 
 
 def check_anti_cheat(dm):
@@ -133,11 +127,13 @@ def find_and_engage_monster(dm):
     global last_monster_seen_time
     """Search for a monster on the overworld and attempt to enter battle.
     Returns True if battle was entered, False otherwise."""
-    check_revive(dm, is_paused)
     check_dead_mercenary(dm)
     (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
     if x <= 0:
-        print('No monster found. Returning to overworld.')
+        # if time.time() - last_monster_seen_time > 10.0:
+        #     print('No monsters found for 10 seconds, pressing Esc to close any open dialogs')
+        #     dm.KeyPress(27)
+        #     last_monster_seen_time = time.time()
         return False
 
     last_monster_seen_time = time.time()
@@ -154,8 +150,12 @@ def find_and_engage_monster(dm):
     while time.time() - start_time < 3.5:
         if check_anti_cheat(dm):
             print('Anti-cheat (horse stamp) detected, pausing script')
-            play_alert_sound(dm)
-            time.sleep(5)
+            for _ in range(10):
+                play_alert_sound(dm)
+                time.sleep(0.5) 
+                
+            keyboard.press_and_release('page up')
+            time.sleep(1)
             return False
 
         if is_in_battle(dm):
@@ -183,8 +183,6 @@ def handle_battle(dm):
     """Process a single battle until it ends."""
     print('Entered battle screen')
     action_executed = False
-    no_monster_checks_count = 0
-    detected_formation = None
 
     while True:
         if paused:
@@ -216,49 +214,22 @@ def handle_battle(dm):
             check_dead_mercenary(dm)
             break
 
-        if not detected_formation:
-            for direction, regions in FORMATION_REGIONS.items():
-                if check_formation(dm, regions[0], regions[1]):
-                    detected_formation = direction
-                    print(f'Formation position detected: {detected_formation}')
-                    time.sleep(0.1)
-                    break
+        for direction, regions in FORMATION_REGIONS.items():
+            if action_executed:
+                break
 
-        if detected_formation:
-            monster_found = False
-            for monster_dir in MONSTER_CHECKS[detected_formation]:
-                (x1, y1, x2, y2) = MONSTER_DIRECTION_REGIONS[monster_dir]
-                if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
-                    monster_found = True
-                    print(f'Executing strategy → Formation: {detected_formation} | Monster: {monster_dir}')
-                    execute_battle_strategy(dm, detected_formation, monster_dir)
-                    time.sleep(12)
-                    action_executed = True
-                    break
+            if check_formation(dm, regions[0], regions[1]):
+                print(f'Formation position detected: {direction}')
+                time.sleep(0.1)
 
-            if not monster_found:
-                no_monster_checks_count += 1
-                print(f'Checked all sides for {detected_formation} formation, found no monsters. Attempt {no_monster_checks_count}/5')
-                if no_monster_checks_count >= 10:
-                    print('No monsters found in 5 consecutive checks. Exiting battle by pressing Esc 2 times...')
-                    for _ in range(2):
-                        dm.KeyPress(27)
-                        dm.Delay(100)
-                    
-                    print('Waiting for battle screen to close...')
-                    start_wait = time.time()
-                    battle_closed = False
-                    while time.time() - start_wait < 5.0:
-                        if not is_in_battle(dm):
-                            battle_closed = True
-                            break
-                        time.sleep(0.2)
-                    
-                    check_revive(dm, is_paused)
-                    check_dead_mercenary(dm)
-                    return
-            else:
-                no_monster_checks_count = 0
+                for monster_dir in MONSTER_CHECKS[direction]:
+                    (x1, y1, x2, y2) = MONSTER_DIRECTION_REGIONS[monster_dir]
+                    if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
+                        print(f'Executing strategy → Formation: {direction} | Monster: {monster_dir}')
+                        execute_battle_strategy(dm, direction, monster_dir)
+                        time.sleep(12)
+                        action_executed = True
+                        break
 
         # Check if battle ended
         if not is_in_battle(dm):
@@ -340,9 +311,9 @@ def run_main_script():
                     continue
 
                 battle_counter += 1
-                print(f'Battles completed: {battle_counter}/10')
-                if battle_counter >= 10:
-                    print('Reached 10 battles. Restarting application...')
+                print(f'Battles completed: {battle_counter}/2')
+                if battle_counter >= 5:
+                    print('Reached 5 battles. Restarting application...')
                     dm.UnBindWindow()
                     time.sleep(0.5)
                     if getattr(sys, 'frozen', None):

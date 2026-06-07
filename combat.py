@@ -22,7 +22,7 @@ def has_non_black_in_region(dm, x1, y1, x2, y2, direction_name, threshold=0.015)
     '''
     non_black_count = 0
     total_points = 0
-    step = 10
+    step = 2
     get_color = dm.GetColor  # Local reference cache for faster loop execution
     for py in range(y1, y2 + 1, step):
         for px in range(x1, x2 + 1, step):
@@ -216,7 +216,7 @@ def strategy_south_north(dm):
     dm.Delay(50)
     dm.KeyPress(87)
     dm.Delay(50)
-    dm.MoveTo(477, 164)
+    dm.MoveTo(497, 164)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
