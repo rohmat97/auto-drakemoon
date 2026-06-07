@@ -15,30 +15,125 @@ def check_revive(dm, is_paused_func):
         return True
     return False
 
-def has_non_black_in_region(dm, x1, y1, x2, y2, direction_name, threshold=0.015):
-    '''
-    Use non-black pixel ratio to determine if there are monsters in the region
-    threshold: Non-black pixel ratio threshold, default 2.5%
-    '''
-    non_black_count = 0
-    total_points = 0
-    step = 2
-    get_color = dm.GetColor  # Local reference cache for faster loop execution
-    for py in range(y1, y2 + 1, step):
-        for px in range(x1, x2 + 1, step):
-            color = get_color(px, py)
-            total_points += 1
-            if color != '080808' and color != '':
-                non_black_count += 1
 
-    if total_points == 0:
-        return False
-    ratio = non_black_count / total_points
-    has_non_black = ratio > threshold
-    if direction_name:
-        status = '[Monsters Found]' if has_non_black else '[No Monsters]'
-        print(f'''   └ {direction_name:4} Region ({x1},{y1})-({x2},{y2}) → {status}  (Non-black: {non_black_count}/{total_points} ≈ {ratio:.1%})''')
-    return has_non_black
+
+def map_vector_to_direction(dx, dy):
+    """Map a 2D minimap vector to a cardinal direction (North, South, East, West).
+    Accounts for the 2.2:1 aspect ratio of the minimap diamond."""
+    scaled_dy = dy * 2.2
+    if abs(scaled_dy) >= abs(dx):
+        return 'North' if dy < 0 else 'South'
+    else:
+        return 'East' if dx > 0 else 'West'
+
+def get_minimap_positions(dm, detected_formation=None):
+    """Scan the minimap area using PIL for extreme speed."""
+    import os
+    try:
+        from PIL import Image
+    except ImportError:
+        print("PIL is not installed. Minimap detection requires PIL for speed.")
+        return None, None, None, None
+
+    # Capture minimap area to memory/file
+    temp_path = os.path.join(dm.GetBasePath(), 'temp_minimap.bmp')
+    dm.Capture(0, 675, 259, 767, temp_path)
+    
+    if not os.path.exists(temp_path):
+        return None, None, None, None
+        
+    try:
+        img = Image.open(temp_path)
+        img.load()
+    except Exception:
+        return None, None, None, None
+
+    dots = 0
+    step = 2
+    for y in range(0, img.height, step):
+        for x in range(0, img.width, step):
+            r, g, b = img.getpixel((x, y))
+            br = max(r, g, b)
+            
+            is_dot = False
+            if br > 230:
+                is_dot = True
+            elif r > 120 and g < 90 and b < 90:
+                is_dot = True
+            elif g > r + 15 or b > r + 15:
+                is_dot = True
+            
+            if is_dot:
+                dots += 1
+                if dots > 10:
+                    return 1, 1, 1, 1
+
+    return None, None, None, None
+
+def get_monster_direction(dm, detected_formation=None):
+    '''
+    Captures the minimap once, and checks the pre-defined bounding boxes for monster dots.
+    This completely avoids K-Means clustering, preventing the minimap camera rectangle from ruining detection.
+    Returns the direction name (e.g. 'East') or None if not found.
+    '''
+    import os
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+
+    # Capture minimap area to memory/file
+    temp_path = os.path.join(dm.GetBasePath(), 'temp_minimap.bmp')
+    dm.Capture(0, 675, 259, 767, temp_path)
+    
+    if not os.path.exists(temp_path):
+        return None
+        
+    try:
+        img = Image.open(temp_path)
+        img.load()
+    except Exception:
+        return None
+
+    from config import MONSTER_CHECKS, MONSTER_DIRECTION_REGIONS
+    valid_dirs = MONSTER_CHECKS.get(detected_formation, ['East', 'South', 'West', 'North'])
+    
+    best_dir = None
+    max_dots = 0
+    
+    for d in valid_dirs:
+        reg = MONSTER_DIRECTION_REGIONS[d]
+        x1, y1, x2, y2 = reg
+        
+        dots_in_region = 0
+        for y in range(y1 - 675, y2 - 675 + 1):
+            for x in range(x1, x2 + 1):
+                if x < 0 or x >= img.width or y < 0 or y >= img.height:
+                    continue
+                    
+                r, g, b = img.getpixel((x, y))
+                br = max(r, g, b)
+                
+                is_dot = False
+                if br > 230:
+                    is_dot = True
+                elif r > 120 and g < 90 and b < 90:
+                    is_dot = True
+                elif g > r + 15 or b > r + 15:
+                    is_dot = True
+                    
+                if is_dot:
+                    dots_in_region += 1
+                    
+        if dots_in_region > max_dots:
+            max_dots = dots_in_region
+            best_dir = d
+
+    if best_dir:
+        print(f'   └ Target closest to monster cluster: {best_dir} ({max_dots} dots)')
+        return best_dir
+        
+    return None
 
 def check_formation(dm, region1, region2):
     (r1, x1, y1) = dm.FindPic(region1[0], region1[1], region1[2], region1[3], '080808.bmp', '050505', 1, 0)
@@ -110,18 +205,14 @@ def strategy_east_south(dm):
     dm.Delay(50)
     dm.MoveTo(904, 472)
     dm.Delay(50)
-    dm.MoveTo(600, 450)
+    dm.MoveTo(500, 450)
     dm.Delay(200)
     dm.KeyDown(40)
     time.sleep(0.3)
     dm.KeyUp(40)
     dm.Delay(50)
     execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
+    dm.Delay(500)
     execute_skill_loop(dm)
     dm.Delay(50)
    
@@ -135,45 +226,40 @@ def strategy_east_west(dm):
     dm.Delay(50)
     dm.KeyPress(87)
     dm.Delay(50)
-    dm.MoveTo(53, 350)
+    dm.MoveTo(103, 350)
     dm.Delay(50)
     dm.KeyDown(37)
     time.sleep(0.15)
     dm.KeyUp(37)
     dm.Delay(50)
     execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
+    dm.Delay(500)
     execute_skill_loop(dm)
     dm.Delay(50)
    
 
 def strategy_east_north(dm):
-    dm.MoveTo(9, 371)
-    time.sleep(0.53)
-    dm.MoveTo(511, 341)
-    dm.Delay(50)
-    dm.KeyPress(81)
-    dm.Delay(50)
-    dm.KeyPress(87)
-    dm.Delay(50)
-    dm.MoveTo(954, 223)
-    dm.Delay(50)
-    dm.MoveTo(562, 9)
-    dm.Delay(50)
-    dm.MoveTo(600, 50)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
+    for _ in range(4):
+        dm.KeyPress(27)
+        dm.Delay(100)
+    # dm.MoveTo(9, 371)
+    # time.sleep(0.53)
+    # dm.MoveTo(511, 341)
+    # dm.Delay(50)
+    # dm.KeyPress(81)
+    # dm.Delay(50)
+    # dm.KeyPress(87)
+    # dm.Delay(50)
+    # dm.MoveTo(954, 223)
+    # dm.Delay(50)
+    # dm.MoveTo(562, 9)
+    # dm.Delay(50)
+    # dm.MoveTo(600, 50)
+    # dm.Delay(50)
+    # execute_skill_loop(dm)
+    # dm.Delay(500)
+    # execute_skill_loop(dm)
+    # dm.Delay(50)
    
 
 def strategy_south_east(dm):
@@ -196,11 +282,7 @@ def strategy_south_east(dm):
     dm.KeyUp(39)
     dm.Delay(50)
     execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
+    dm.Delay(500)
     execute_skill_loop(dm)
     dm.Delay(50)
    
@@ -217,15 +299,11 @@ def strategy_south_west(dm):
     dm.MoveTo(164, 449)
     dm.Delay(50)
     dm.MoveTo(8, 449)
-    time.sleep(0.33)
-    dm.MoveTo(150, 268)
+    time.sleep(0.15)
+    dm.MoveTo(110, 290)
     dm.Delay(50)
     execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
+    dm.Delay(500)
     execute_skill_loop(dm)
     dm.Delay(50)
    
@@ -239,14 +317,10 @@ def strategy_south_north(dm):
     dm.Delay(50)
     dm.KeyPress(87)
     dm.Delay(50)
-    dm.MoveTo(477, 64)
+    dm.MoveTo(477, 124)
     dm.Delay(50)
     execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
+    dm.Delay(500)
     execute_skill_loop(dm)
     dm.Delay(50)
    
@@ -267,11 +341,7 @@ def strategy_west_east(dm):
     dm.KeyUp(39)
     dm.Delay(50)
     execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
+    dm.Delay(500)
     execute_skill_loop(dm)
     dm.Delay(50)
    
@@ -285,14 +355,12 @@ def strategy_west_south(dm):
     dm.Delay(50)
     dm.KeyPress(87)
     dm.Delay(50)
-    dm.MoveTo(150, 646)
+    dm.MoveTo(12, 646)
+    time.sleep(0.30)
+    dm.MoveTo(350, 646)
     dm.Delay(50)
     execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
+    dm.Delay(500)
     execute_skill_loop(dm)
     dm.Delay(50)
    
@@ -313,11 +381,7 @@ def strategy_west_north(dm):
     dm.MoveTo(254, 46)
     dm.Delay(50)
     execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
+    dm.Delay(500)
     execute_skill_loop(dm)
     dm.Delay(50)
    
@@ -335,14 +399,10 @@ def strategy_north_east(dm):
     dm.Delay(50)
     dm.MoveTo(1006, 128)
     time.sleep(0.33)
-    dm.MoveTo(877, 351)
+    dm.MoveTo(777, 301)
     dm.Delay(50)
     execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
+    dm.Delay(500)
     execute_skill_loop(dm)
     dm.Delay(50)
    
@@ -356,20 +416,16 @@ def strategy_north_south(dm):
     dm.Delay(50)
     dm.KeyPress(87)
     dm.Delay(50)
-    dm.MoveTo(508, 571)
+    dm.MoveTo(508, 600)
     dm.Delay(50)
     execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
+    dm.Delay(500)
     execute_skill_loop(dm)
     dm.Delay(50)
    
 
 def strategy_north_west(dm):
-    dm.MoveTo(483, 788)
+    dm.MoveTo(480, 759)
     time.sleep(0.66)
     dm.MoveTo(570, 229)
     dm.Delay(50)
@@ -390,11 +446,7 @@ def strategy_north_west(dm):
     dm.KeyUp(37)
     dm.Delay(50)
     execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
-    execute_skill_loop(dm)
-    dm.Delay(50)
+    dm.Delay(500)
     execute_skill_loop(dm)
     dm.Delay(50)
 

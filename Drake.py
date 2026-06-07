@@ -15,16 +15,17 @@ from config import (
 )
 from window_manager import move_game_window, bind_game_window
 from combat import (
-    check_revive, has_non_black_in_region, check_formation,
-    execute_battle_strategy,
+    check_revive, check_formation, execute_skill_loop, 
+    strategy_east_south, strategy_south_north, strategy_west_north, strategy_north_west,
+    get_monster_direction, execute_battle_strategy
 )
 
 # ---------------------------------------------------------------------------
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
+# MONSTER_IMAGES = '|'.join([rf'ancient_heo\a{i}.bmp' for i in range(1, 26)])
 MONSTER_IMAGES = '|'.join([rf'ancient_byeok\a{i}.bmp' for i in range(1, 26)])
-# MONSTER_IMAGES = '|'.join([f'elder{i}.bmp' for i in range(1, 12)])
-DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 17)])
+DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(2, 13)])
 
 # ---------------------------------------------------------------------------
 # Pause state  (shared via closure / global)
@@ -114,7 +115,7 @@ def check_anti_cheat(dm):
 def play_alert_sound(dm):
     """Play an alert sound when anti-cheat is triggered."""
     try:
-        sound_path = os.path.join(dm.getPath(), 'whatsapp.wav')
+        sound_path = os.path.join(dm.GetBasePath(), 'whatsapp.wav')
         if os.path.exists(sound_path):
             winsound.PlaySound(sound_path, winsound.SND_FILENAME)
     except Exception:
@@ -133,9 +134,13 @@ def find_and_engage_monster(dm):
     global last_monster_seen_time
     """Search for a monster on the overworld and attempt to enter battle.
     Returns True if battle was entered, False otherwise."""
-    check_revive(dm, is_paused)
-    check_dead_mercenary(dm)
+    if check_revive(dm, is_paused):
+        return False
     (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
+    
+    check_dead_mercenary(dm)
+    time.sleep(0.1)
+
     if x <= 0:
         print('No monster found. Returning to overworld.')
         return False
@@ -155,6 +160,7 @@ def find_and_engage_monster(dm):
         if check_anti_cheat(dm):
             print('Anti-cheat (horse stamp) detected, pausing script')
             play_alert_sound(dm)
+            dm.Delay(300)   
             time.sleep(5)
             return False
 
@@ -179,9 +185,40 @@ def find_and_engage_monster(dm):
 # ---------------------------------------------------------------------------
 # Battle phase: detect formation and execute strategy
 # ---------------------------------------------------------------------------
+from combat import get_minimap_positions, map_vector_to_direction
+
+def wait_for_minimap_to_load(dm):
+    """Wait for the minimap dots to fade in."""
+    import time
+    
+    print('   [Minimap] Waiting for minimap dots to load...')
+    for attempt in range(25): # Wait up to 5 seconds
+        px, py, mx, my = get_minimap_positions(dm)
+        if px is not None and py is not None:
+            debug_path = os.path.join(dm.GetBasePath(), 'debug_minimap.bmp')
+            dm.Capture(0, 675, 259, 767, debug_path)
+            return True
+        time.sleep(0.2)
+        
+    print('   [Minimap] Failed to find minimap dots after 5 seconds.')
+    
+    # Save debug screenshot of failure
+    debug_path = os.path.join(dm.GetBasePath(), 'debug_minimap.bmp')
+    dm.Capture(0, 675, 259, 767, debug_path)
+    
+    return False
+
 def handle_battle(dm):
     """Process a single battle until it ends."""
     print('Entered battle screen')
+    
+    # Debug: capture full screen and minimap during battle
+    time.sleep(0.5)  # Wait for battle to fully render
+    resource_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Resource')
+    dm.Capture(0, 0, 1023, 767, os.path.join(resource_dir, 'debug_fullscreen.bmp'))
+    dm.Capture(0, 675, 259, 767, os.path.join(resource_dir, 'debug_minimap.bmp'))
+    print(f'   [DEBUG] Screenshots saved to Resource/debug_fullscreen.bmp and debug_minimap.bmp')
+
     action_executed = False
     no_monster_checks_count = 0
     detected_formation = None
@@ -217,31 +254,37 @@ def handle_battle(dm):
             break
 
         if not detected_formation:
-            for direction, regions in FORMATION_REGIONS.items():
-                if check_formation(dm, regions[0], regions[1]):
-                    detected_formation = direction
-                    print(f'Formation position detected: {detected_formation}')
-                    time.sleep(0.1)
-                    break
+            wait_for_minimap_to_load(dm)
+            
+            # Use reliable corner screen detection
+            if check_formation(dm, FORMATION_REGIONS['East'][0], FORMATION_REGIONS['East'][1]):
+                detected_formation = 'East'
+            elif check_formation(dm, FORMATION_REGIONS['South'][0], FORMATION_REGIONS['South'][1]):
+                detected_formation = 'South'
+            elif check_formation(dm, FORMATION_REGIONS['West'][0], FORMATION_REGIONS['West'][1]):
+                detected_formation = 'West'
+            elif check_formation(dm, FORMATION_REGIONS['North'][0], FORMATION_REGIONS['North'][1]):
+                detected_formation = 'North'
+            else:
+                detected_formation = 'East'
+            print(f'Formation position detected via Screen Corners: {detected_formation}')
 
         if detected_formation:
             monster_found = False
-            for monster_dir in MONSTER_CHECKS[detected_formation]:
-                (x1, y1, x2, y2) = MONSTER_DIRECTION_REGIONS[monster_dir]
-                if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
-                    monster_found = True
-                    print(f'Executing strategy → Formation: {detected_formation} | Monster: {monster_dir}')
-                    execute_battle_strategy(dm, detected_formation, monster_dir)
-                    time.sleep(12)
-                    action_executed = True
-                    break
+            monster_dir = get_monster_direction(dm, detected_formation)
+            if monster_dir:
+                monster_found = True
+                print(f'Executing strategy → Formation: {detected_formation} | Monster: {monster_dir}')
+                execute_battle_strategy(dm, detected_formation, monster_dir)
+                time.sleep(12)
+                action_executed = True
 
             if not monster_found:
                 no_monster_checks_count += 1
-                print(f'Checked all sides for {detected_formation} formation, found no monsters. Attempt {no_monster_checks_count}/5')
-                if no_monster_checks_count >= 5:
-                    print('No monsters found in 5 consecutive checks. Exiting battle by pressing Esc 2 times...')
-                    for _ in range(2):
+                print(f'Checked all sides for {detected_formation} formation, found no monsters. Attempt {no_monster_checks_count}/8')
+                if no_monster_checks_count >= 8:
+                    print('No monsters found in 8 consecutive checks. Exiting battle by pressing Esc 4 times...')
+                    for _ in range(4):
                         dm.KeyPress(27)
                         dm.Delay(100)
                     
@@ -266,6 +309,7 @@ def handle_battle(dm):
             print('Battle screen ended')
             check_revive(dm, is_paused)
             check_dead_mercenary(dm)
+            no_monster_checks_count = 0
             break
         else:
             time.sleep(0.5)
@@ -325,7 +369,8 @@ def run_main_script():
                 gc.collect()  # Collect when paused
                 time.sleep(0.5)
                 continue
-
+            time.sleep(0.1)
+            check_dead_mercenary(dm)
             battle_entered = find_and_engage_monster(dm)
             if battle_entered or is_in_battle(dm):
                 handle_battle(dm)
