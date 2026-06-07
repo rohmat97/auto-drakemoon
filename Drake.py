@@ -25,7 +25,7 @@ from combat import (
 # ---------------------------------------------------------------------------
 # MONSTER_IMAGES = '|'.join([rf'ancient_heo\a{i}.bmp' for i in range(1, 26)])
 MONSTER_IMAGES = '|'.join([rf'ancient_byeok\a{i}.bmp' for i in range(1, 26)])
-DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(2, 13)])
+DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 17)])
 
 # ---------------------------------------------------------------------------
 # Pause state  (shared via closure / global)
@@ -137,8 +137,6 @@ def find_and_engage_monster(dm):
     if check_revive(dm, is_paused):
         return False
     (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
-    
-    check_dead_mercenary(dm)
     time.sleep(0.1)
 
     if x <= 0:
@@ -281,9 +279,9 @@ def handle_battle(dm):
 
             if not monster_found:
                 no_monster_checks_count += 1
-                print(f'Checked all sides for {detected_formation} formation, found no monsters. Attempt {no_monster_checks_count}/8')
-                if no_monster_checks_count >= 8:
-                    print('No monsters found in 8 consecutive checks. Exiting battle by pressing Esc 4 times...')
+                print(f'Checked all sides for {detected_formation} formation, found no monsters. Attempt {no_monster_checks_count}/6')
+                if no_monster_checks_count >= 6:
+                    print('No monsters found in 6 consecutive checks. Exiting battle by pressing Esc 4 times...')
                     for _ in range(4):
                         dm.KeyPress(27)
                         dm.Delay(100)
@@ -370,7 +368,6 @@ def run_main_script():
                 time.sleep(0.5)
                 continue
             time.sleep(0.1)
-            check_dead_mercenary(dm)
             battle_entered = find_and_engage_monster(dm)
             if battle_entered or is_in_battle(dm):
                 handle_battle(dm)
