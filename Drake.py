@@ -127,6 +127,11 @@ def find_and_engage_monster(dm):
     global last_monster_seen_time
     """Search for a monster on the overworld and attempt to enter battle.
     Returns True if battle was entered, False otherwise."""
+    if check_revive(dm, is_paused):
+        print('Waiting for town to load after reviving main character...')
+        time.sleep(5)  # Wait for the loading screen to pass
+        return False
+        
     check_dead_mercenary(dm)
     (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
     if x <= 0:
@@ -154,8 +159,8 @@ def find_and_engage_monster(dm):
                 play_alert_sound(dm)
                 time.sleep(0.5) 
                 
-            keyboard.press_and_release('page up')
-            time.sleep(1)
+            # keyboard.press_and_release('page up')
+            time.sleep(5)
             return False
 
         if is_in_battle(dm):
@@ -183,6 +188,7 @@ def handle_battle(dm):
     """Process a single battle until it ends."""
     print('Entered battle screen')
     action_executed = False
+    no_monster_count = 0
 
     while True:
         if paused:
@@ -231,12 +237,28 @@ def handle_battle(dm):
                         action_executed = True
                         break
 
+        if not action_executed:
+            no_monster_count += 1
+            if no_monster_count >= 5:
+                print('No monsters found 5 times. Exiting battle by pressing Esc 2 times...')
+                dm.KeyPress(27)
+                dm.Delay(100)
+                dm.KeyPress(27)
+                dm.Delay(100)
+                time.sleep(2)
+                no_monster_count = 0
+            else:
+                time.sleep(0.5)
+
         # Check if battle ended
         if not is_in_battle(dm):
             action_executed = True
             print('Battle screen ended')
-            check_revive(dm, is_paused)
-            check_dead_mercenary(dm)
+            if check_revive(dm, is_paused):
+                print('Waiting for town to load after reviving main character...')
+                time.sleep(5)
+            else:
+                check_dead_mercenary(dm)
             break
         else:
             time.sleep(0.5)
@@ -322,6 +344,7 @@ def run_main_script():
                         subprocess.Popen([sys.executable], cwd=cwd)
                         sys.exit(0)
                     else:
+                        time.sleep(5)
                         sys.exit(5)  # Exit code 5 signals run.bat to restart
 
             loop_counter += 1

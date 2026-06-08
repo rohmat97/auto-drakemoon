@@ -5,7 +5,7 @@ import time
 def check_revive(dm, is_paused_func):
     if is_paused_func():
         return False
-    (r, x, y) = dm.FindPic(546, 420, 578, 448, 'revivedrake.bmp', '050505', 0.8, 0)
+    (r, x, y) = dm.FindPic(0, 0, 1024, 768, 'revivedrake.bmp', '202020', 0.7, 0)
     if x > 0:
         print('Main character revived successfully')
         dm.MoveTo(x, y)
