@@ -233,7 +233,7 @@ def strategy_west_east(dm):
     dm.Delay(50)
     dm.KeyPress(87)
     dm.Delay(50)
-    dm.MoveTo(400, 375)
+    dm.MoveTo(450, 375)
     dm.Delay(50)
     dm.KeyDown(39)
     time.sleep(0.4)
