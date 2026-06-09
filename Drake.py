@@ -1,5 +1,6 @@
 # Drake.py — Main entrypoint and orchestrator
 
+from os import system
 import os
 import sys
 import time
@@ -30,6 +31,7 @@ DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 17)])
 # Pause state  (shared via closure / global)
 # ---------------------------------------------------------------------------
 paused = False
+anti_cheat_detected = False
 last_monster_seen_time = time.time()
 
 
@@ -98,8 +100,8 @@ def check_dead_mercenary(dm):
 
 def check_anti_cheat(dm):
     """Returns True if the anti-cheat horse-stamp is detected."""
-    (_, x_horse, _) = dm.FindPic(599, 21, 650, 49, 'horse.bmp', '050505', 0.8, 0)
-    (_, x_bread, _) = dm.FindPic(50, 650, 93, 689, 'bread.bmp', '050505', 0.8, 0)
+    (_, x_horse, _) = dm.FindPic(599, 21, 650, 49, r'anti_cheat\horse.bmp', '050505', 0.8, 0)
+    (_, x_bread, _) = dm.FindPic(50, 650, 93, 689, r'anti_cheat\bread.bmp', '050505', 0.8, 0)
     if x_horse <= 0 and x_bread > 0:
         return True
     return False
@@ -124,7 +126,7 @@ def is_in_battle(dm):
 # Overworld: find and engage a monster
 # ---------------------------------------------------------------------------
 def find_and_engage_monster(dm):
-    global last_monster_seen_time
+    global last_monster_seen_time, anti_cheat_detected
     """Search for a monster on the overworld and attempt to enter battle.
     Returns True if battle was entered, False otherwise."""
     if check_revive(dm, is_paused):
@@ -154,14 +156,8 @@ def find_and_engage_monster(dm):
 
     while time.time() - start_time < 3.5:
         if check_anti_cheat(dm):
-            print('Anti-cheat (horse stamp) detected, pausing script')
-            for _ in range(10):
-                play_alert_sound(dm)
-                time.sleep(0.5) 
-                
-            # keyboard.press_and_release('page up')
-            time.sleep(5)
-            return False
+            print('Anti-cheat (horse stamp) detected, will exit after current battle finishes')
+            anti_cheat_detected = True
 
         if is_in_battle(dm):
             print('✅ Successfully entered battle screen')
@@ -324,6 +320,14 @@ def run_main_script():
                 handle_battle(dm)
                 gc.collect()  # Clean up COM references and memory after battle
 
+                # If anti-cheat was detected, exit now that the battle is over
+                if anti_cheat_detected:
+                    print('Battle finished. Anti-cheat was detected, exiting now...')
+                    for _ in range(10):
+                        play_alert_sound(dm)
+                        time.sleep(0.5)
+                    sys.exit(10)
+
                 # Check revive and food after battle
                 check_revive(dm, is_paused)
                 if check_food(dm):
@@ -346,6 +350,14 @@ def run_main_script():
                     else:
                         time.sleep(5)
                         sys.exit(5)  # Exit code 5 signals run.bat to restart
+
+            # Anti-cheat detected outside of battle — exit immediately
+            if anti_cheat_detected and not (battle_entered or is_in_battle(dm)):
+                print('Anti-cheat detected (not in battle), exiting now...')
+                for _ in range(10):
+                    play_alert_sound(dm)
+                    time.sleep(0.5)
+                sys.exit(10)
 
             loop_counter += 1
             if loop_counter % 50 == 0:

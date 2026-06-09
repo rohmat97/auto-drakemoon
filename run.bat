@@ -23,4 +23,13 @@ if %errorlevel% equ 5 (
     goto loop
 )
 
+:: Check if the Python script requested a restart (exit code 10)
+if %errorlevel% equ 10 (
+    echo Anti-cheat detected. Exiting...
+    timeout /t 60
+    echo.
+    goto loop
+)
+
+
 pause
