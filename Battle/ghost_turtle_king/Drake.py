@@ -1,4 +1,4 @@
-# Drake.py — Main entrypoint and orchestrator
+# Drake.py — Main entrypoint and orchestrator (Ghost Turtle King)
 
 from os import system
 import os
@@ -8,6 +8,12 @@ import keyboard
 import winsound
 import gc
 from tkinter import messagebox
+
+# Add the project root so shared modules (PyGameAuto, etc.) can be found
+# Using append so local modules (combat.py, config.py, etc.) take priority
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.append(_PROJECT_ROOT)
 
 from PyGameAuto.Dm import RegDm
 from config import (
@@ -23,8 +29,7 @@ from combat import (
 # ---------------------------------------------------------------------------
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
-# MONSTER_IMAGES = '|'.join([rf'mythic_beast\mythic{i}.bmp' for i in range(1, 41)])
-MONSTER_IMAGES = '|'.join([rf'dark_gujimo\elder{i}.bmp' for i in range(1, 12)])
+MONSTER_IMAGES = '|'.join([rf'ghost_turtle\ghosttur{i}.bmp' for i in range(1, 16)])
 DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 17)])
 
 # ---------------------------------------------------------------------------
@@ -281,7 +286,7 @@ def run_main_script():
     if getattr(sys, 'frozen', None):
         basedir = sys._MEIPASS
     else:
-        basedir = os.path.dirname(__file__)
+        basedir = _PROJECT_ROOT
     dm.setPath(os.path.join(basedir, 'Resource'))
 
     paused = False

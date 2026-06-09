@@ -1,4 +1,4 @@
-# Drake.py — Main entrypoint and orchestrator
+# Drake.py — Main entrypoint and orchestrator (Dark Gujimo Elder)
 
 from os import system
 import os
@@ -8,6 +8,16 @@ import keyboard
 import winsound
 import gc
 from tkinter import messagebox
+
+# Ensure local modules (combat.py, config.py, etc.) are found first
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
+# Add the project root for shared modules (PyGameAuto, etc.)
+_PROJECT_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, '..', '..'))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.append(_PROJECT_ROOT)
 
 from PyGameAuto.Dm import RegDm
 from config import (
@@ -23,8 +33,10 @@ from combat import (
 # ---------------------------------------------------------------------------
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
-# MONSTER_IMAGES = '|'.join([rf'mythic_beast\mythic{i}.bmp' for i in range(1, 41)])
-MONSTER_IMAGES = '|'.join([rf'dark_gujimo\elder{i}.bmp' for i in range(1, 12)])
+MONSTER_IMAGES = '|'.join(
+    [rf'dark_gujimo\elder{i}.bmp' for i in range(1, 12)] +
+    [rf'dark_gujimo\goju{i}.bmp' for i in range(1, 12)]
+)
 DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 17)])
 
 # ---------------------------------------------------------------------------
@@ -281,7 +293,7 @@ def run_main_script():
     if getattr(sys, 'frozen', None):
         basedir = sys._MEIPASS
     else:
-        basedir = os.path.dirname(__file__)
+        basedir = _PROJECT_ROOT
     dm.setPath(os.path.join(basedir, 'Resource'))
 
     paused = False
@@ -353,9 +365,9 @@ def run_main_script():
                     continue
 
                 battle_counter += 1
-                print(f'Battles completed: {battle_counter}/2')
-                if battle_counter >= 5:
-                    print('Reached 5 battles. Restarting application...')
+                print(f'Battles completed: {battle_counter}/10')
+                if battle_counter >= 10:
+                    print('Reached 10 battles. Restarting application...')
                     dm.UnBindWindow()
                     time.sleep(0.5)
                     if getattr(sys, 'frozen', None):
