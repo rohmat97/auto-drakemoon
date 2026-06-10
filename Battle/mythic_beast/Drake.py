@@ -21,7 +21,7 @@ from config import (
     FORMATION_REGIONS, MONSTER_DIRECTION_REGIONS, MONSTER_CHECKS,
 )
 from window_manager import move_game_window, bind_game_window
-from combat import (
+from Battle.mythic_beast.combat import (
     check_revive, has_non_black_in_region, check_formation,
     execute_battle_strategy,
 )

@@ -1,4 +1,4 @@
-# Drake.py — Main entrypoint and orchestrator (Ghost Turtle King)
+# Drake.py — Main entrypoint and orchestrator (Dark Gujimo Elder)
 
 from os import system
 import os
@@ -9,9 +9,13 @@ import winsound
 import gc
 from tkinter import messagebox
 
-# Add the project root so shared modules (PyGameAuto, etc.) can be found
-# Using append so local modules (combat.py, config.py, etc.) take priority
-_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+# Ensure local modules (combat.py, config.py, etc.) are found first
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
+# Add the project root for shared modules (PyGameAuto, etc.)
+_PROJECT_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, '..', '..'))
 if _PROJECT_ROOT not in sys.path:
     sys.path.append(_PROJECT_ROOT)
 
@@ -21,7 +25,7 @@ from config import (
     FORMATION_REGIONS, MONSTER_DIRECTION_REGIONS, MONSTER_CHECKS,
 )
 from window_manager import move_game_window, bind_game_window
-from combat import (
+from Battle.ghost_turtle_king.combat import (
     check_revive, has_non_black_in_region, check_formation,
     execute_battle_strategy,
 )
@@ -358,9 +362,9 @@ def run_main_script():
                     continue
 
                 battle_counter += 1
-                print(f'Battles completed: {battle_counter}/2')
-                if battle_counter >= 5:
-                    print('Reached 5 battles. Restarting application...')
+                print(f'Battles completed: {battle_counter}/10')
+                if battle_counter >= 10:
+                    print('Reached 10 battles. Restarting application...')
                     dm.UnBindWindow()
                     time.sleep(0.5)
                     if getattr(sys, 'frozen', None):

@@ -199,7 +199,7 @@ def strategy_south_west(dm):
     dm.Delay(50)
     dm.MoveTo(8, 449)
     time.sleep(0.33)
-    dm.MoveTo(250, 376)
+    dm.MoveTo(350, 426)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
