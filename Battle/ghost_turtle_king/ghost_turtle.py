@@ -317,8 +317,7 @@ def run_main_script():
     def on_page_down_press(event=None):
         if event.name == 'page down':
             print('Page Down pressed')
-            time.sleep(1)
-            sys.exit(5)  # Exit code 5 signals run.bat to restart
+            relogin(dm)
 
     keyboard.on_press_key('page up', on_page_up_press)
     keyboard.on_press_key('page down', on_page_down_press)
@@ -330,19 +329,21 @@ def run_main_script():
     gc.collect()
 
     def relogin(dm):
+        dm.UnBindWindow()
         """Press Esc to open System Menu, then click 'Char Select'."""
         print('Relogin: Opening System Menu...')
         dm.KeyPress(27)  # Esc to open System Menu
         dm.Delay(500)
-        dm.MoveTo(509, 290)
-        dm.Delay(500)
+        dm.KeyPress(27)  # Esc to open System Menu
+        dm.Delay(1000)
+        dm.MoveTo(509, 320)
+        dm.Delay(1000)
         dm.LeftClick()
-        dm.Delay(500)
+        dm.Delay(1000)
         dm.KeyPress(13)
         dm.Delay(3000)
         dm.KeyPress(13)
-        dm.Delay(500)
-        time.sleep(2)
+        dm.Delay(1000)
         bind_game_window(dm, hwnd)
     
     try:
@@ -365,7 +366,10 @@ def run_main_script():
                     print('Battle finished. Anti-cheat was detected, exiting now...')
                     for _ in range(10):
                         play_alert_sound(dm)
-                        time.sleep(0.5)
+                        dm.Delay(50)
+                        dm.KeyPress(27)
+                        dm.Delay(50)
+                    dm.delay(500)
                     sys.exit(10)
 
                 # Check revive and food after battle
