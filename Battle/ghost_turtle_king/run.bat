@@ -11,13 +11,13 @@ if %errorlevel% neq 0 (
 cd /d "%~dp0"
 
 :loop
-echo Running Drake.py...
+echo Running ghost_turtle.py...
 set PYTHONIOENCODING=utf-8
-py -3.12-32 Drake.py
+py -3.12-32 ghost_turtle.py
 
 :: Check if the Python script requested a restart (exit code 5)
 if %errorlevel% equ 5 (
-    echo Reached battles limit. Restarting Drake.py in 2 seconds...
+    echo Reached battles limit. Restarting ghost_turtle.py in 2 seconds...
     timeout /t 2
     echo.
     goto loop

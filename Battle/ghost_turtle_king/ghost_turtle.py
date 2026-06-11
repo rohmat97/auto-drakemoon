@@ -143,7 +143,15 @@ def find_and_engage_monster(dm):
         time.sleep(5)  # Wait for the loading screen to pass
         return False
         
-    check_dead_mercenary(dm)
+    # Make sure ALL mercenaries are alive before engaging a monster
+    revive_attempts = 0
+    while check_dead_mercenary(dm):
+        revive_attempts += 1
+        if revive_attempts >= 3:
+            print('Still have dead mercenaries after 3 revive attempts, proceeding anyway...')
+            break
+        print(f'Re-checking for dead mercenaries (attempt {revive_attempts + 1})...')
+        time.sleep(0.5)
     (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
     if x <= 0:
         # if time.time() - last_monster_seen_time > 10.0:
@@ -306,7 +314,14 @@ def run_main_script():
                 print('All commands resumed...')
                 bind_game_window(dm, hwnd)
 
+    def on_page_down_press(event=None):
+        if event.name == 'page down':
+            print('Page Down pressed')
+            time.sleep(1)
+            sys.exit(5)  # Exit code 5 signals run.bat to restart
+
     keyboard.on_press_key('page up', on_page_up_press)
+    keyboard.on_press_key('page down', on_page_down_press)
 
     # Disable automatic GC to avoid stutters during time-sensitive key presses
     gc.disable()
@@ -327,6 +342,8 @@ def run_main_script():
         dm.Delay(3000)
         dm.KeyPress(13)
         dm.Delay(500)
+        time.sleep(2)
+        bind_game_window(dm, hwnd)
     
     try:
         loop_counter = 0
@@ -349,8 +366,6 @@ def run_main_script():
                     for _ in range(10):
                         play_alert_sound(dm)
                         time.sleep(0.5)
-                    relogin(dm)
-                    time.sleep(2)
                     sys.exit(10)
 
                 # Check revive and food after battle
@@ -362,19 +377,13 @@ def run_main_script():
                     continue
 
                 battle_counter += 1
-                print(f'Battles completed: {battle_counter}/10')
-                if battle_counter >= 10:
-                    print('Reached 10 battles. Restarting application...')
+                print(f'Battles completed: {battle_counter}/25')
+                if battle_counter >= 25:
+                    print('Reached 25 battles. Relogin...')
+                    time.sleep(5)
                     dm.UnBindWindow()
-                    time.sleep(0.5)
-                    if getattr(sys, 'frozen', None):
-                        import subprocess
-                        cwd = os.path.dirname(os.path.abspath(sys.executable))
-                        subprocess.Popen([sys.executable], cwd=cwd)
-                        sys.exit(0)
-                    else:
-                        time.sleep(5)
-                        sys.exit(5)  # Exit code 5 signals run.bat to restart
+                    relogin(dm)
+                    battle_counter = 0
 
             # Anti-cheat detected outside of battle — exit immediately
             if anti_cheat_detected and not (battle_entered or is_in_battle(dm)):
