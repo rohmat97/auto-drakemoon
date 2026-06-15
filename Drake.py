@@ -24,7 +24,7 @@ from combat import (
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
 # MONSTER_IMAGES = '|'.join([rf'mythic_beast\mythic{i}.bmp' for i in range(1, 41)])
-MONSTER_IMAGES = '|'.join([rf'dark_gujimo\elder{i}.bmp' for i in range(1, 12)])
+MONSTER_IMAGES = '|'.join([rf'water_god\watergod{i}.bmp' for i in range(1, 26)])
 DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 17)])
 
 # ---------------------------------------------------------------------------

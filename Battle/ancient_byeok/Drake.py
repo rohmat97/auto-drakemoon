@@ -1,4 +1,4 @@
-# Drake.py — Main entrypoint and orchestrator (Mythic Beast)
+# Drake.py — Main entrypoint and orchestrator (Dark Gujimo Elder)
 
 from os import system
 import os
@@ -9,9 +9,13 @@ import winsound
 import gc
 from tkinter import messagebox
 
-# Add the project root so shared modules (PyGameAuto, etc.) can be found
-# Using append so local modules (combat.py, config.py, etc.) take priority
-_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+# Ensure local modules (combat.py, config.py, etc.) are found first
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
+# Add the project root for shared modules (PyGameAuto, etc.)
+_PROJECT_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, '..', '..'))
 if _PROJECT_ROOT not in sys.path:
     sys.path.append(_PROJECT_ROOT)
 
@@ -21,7 +25,7 @@ from config import (
     FORMATION_REGIONS, MONSTER_DIRECTION_REGIONS, MONSTER_CHECKS,
 )
 from window_manager import move_game_window, bind_game_window
-from Battle.mythic_beast.combat import (
+from combat import (
     check_revive, has_non_black_in_region, check_formation,
     execute_battle_strategy,
 )
@@ -29,7 +33,7 @@ from Battle.mythic_beast.combat import (
 # ---------------------------------------------------------------------------
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
-MONSTER_IMAGES = '|'.join([rf'mythic_beast\mythic{i}.bmp' for i in range(1, 41)])
+MONSTER_IMAGES = '|'.join([rf'water_god\watergod{i}.bmp' for i in range(1, 26)])
 DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 17)])
 
 # ---------------------------------------------------------------------------
@@ -142,10 +146,6 @@ def find_and_engage_monster(dm):
     check_dead_mercenary(dm)
     (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
     if x <= 0:
-        # if time.time() - last_monster_seen_time > 10.0:
-        #     print('No monsters found for 10 seconds, pressing Esc to close any open dialogs')
-        #     dm.KeyPress(27)
-        #     last_monster_seen_time = time.time()
         return False
 
     last_monster_seen_time = time.time()
@@ -155,11 +155,14 @@ def find_and_engage_monster(dm):
     dm.RightClick()
     dm.Delay(300)
 
-    print('Waiting to enter battle screen... (max 3s)')
+    # Chase loop: continuously re-locate the monster and right-click its
+    # updated position so the character keeps following a moving target.
+    print('Chasing monster... (max 6s)')
     start_time = time.time()
-    attempt = 1
+    chase_interval = 0.4  # seconds between re-scans
+    last_chase_time = start_time
 
-    while time.time() - start_time < 3.5:
+    while time.time() - start_time < 6.0:
         if check_anti_cheat(dm):
             print('Anti-cheat (horse stamp) detected, will exit after current battle finishes')
             anti_cheat_detected = True
@@ -168,13 +171,19 @@ def find_and_engage_monster(dm):
             print('✅ Successfully entered battle screen')
             return True
 
-        if time.time() - start_time > 0.5 and attempt == 1:
-            print('Battle not entered, right-clicking monster again...')
-            dm.MoveTo(x, y)
-            dm.Delay(100)
-            dm.RightClick()
-            dm.Delay(300)
-            attempt = 2
+        # Re-scan for monster and right-click its new position
+        now = time.time()
+        if now - last_chase_time >= chase_interval:
+            (_, nx, ny) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
+            if nx > 0:
+                print(f'Re-targeting monster at ({nx}, {ny})')
+                dm.MoveTo(nx, ny)
+                dm.Delay(100)
+                dm.RightClick()
+                dm.Delay(150)
+                x, y = nx, ny
+                last_monster_seen_time = time.time()
+            last_chase_time = now
 
         time.sleep(0.08)
 
@@ -324,6 +333,11 @@ def run_main_script():
         dm.KeyPress(13)
         dm.Delay(500)
     
+    # Save a diagnostic screenshot to verify the window binding is capturing the game graphics correctly (not a black screen)
+    debug_bind_path = os.path.join(dm.getPath(), 'debug_bind.bmp')
+    dm.Capture(0, 0, 1024, 768, debug_bind_path)
+    print(f"Saved initial window capture to: {debug_bind_path}")
+
     try:
         loop_counter = 0
         battle_counter = 0
@@ -333,6 +347,12 @@ def run_main_script():
                 gc.collect()  # Collect when paused
                 time.sleep(0.5)
                 continue
+
+            if loop_counter % 20 == 0:
+                print(f"Loop #{loop_counter}: Searching for monsters on the overworld...")
+                # Let's check if the window is captured correctly
+                # We can save a small crop of the screen to verify
+                dm.Capture(0, 0, 300, 300, os.path.join(dm.getPath(), 'debug_loop.bmp'))
 
             battle_entered = find_and_engage_monster(dm)
             if battle_entered or is_in_battle(dm):
@@ -373,6 +393,7 @@ def run_main_script():
                         battle_counter = 0
                         print('Cache cleared, continuing...')
                         time.sleep(5)
+
 
             # Anti-cheat detected outside of battle — exit immediately
             # if anti_cheat_detected and not (battle_entered or is_in_battle(dm)):

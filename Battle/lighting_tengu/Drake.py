@@ -350,14 +350,14 @@ def run_main_script():
                 gc.collect()  # Clean up COM references and memory after battle
 
                 # If anti-cheat was detected, exit now that the battle is over
-                if anti_cheat_detected:
-                    print('Battle finished. Anti-cheat was detected, exiting now...')
-                    for _ in range(10):
-                        play_alert_sound(dm)
-                        time.sleep(0.5)
-                    relogin(dm)
-                    time.sleep(2)
-                    sys.exit(10)
+                # if anti_cheat_detected:
+                #     print('Battle finished. Anti-cheat was detected, exiting now...')
+                #     for _ in range(10):
+                #         play_alert_sound(dm)
+                #         time.sleep(0.5)
+                #     relogin(dm)
+                #     time.sleep(2)
+                #     sys.exit(10)
 
                 # Check revive and food after battle
                 check_revive(dm, is_paused)
@@ -385,13 +385,13 @@ def run_main_script():
                         time.sleep(5)
 
 
-            # Anti-cheat detected outside of battle — exit immediately
-            if anti_cheat_detected and not (battle_entered or is_in_battle(dm)):
-                print('Anti-cheat detected (not in battle), exiting now...')
-                for _ in range(10):
-                    play_alert_sound(dm)
-                    time.sleep(0.5)
-                sys.exit(10)
+            # # Anti-cheat detected outside of battle — exit immediately
+            # if anti_cheat_detected and not (battle_entered or is_in_battle(dm)):
+            #     print('Anti-cheat detected (not in battle), exiting now...')
+            #     for _ in range(10):
+            #         play_alert_sound(dm)
+            #         time.sleep(0.5)
+            #     sys.exit(10)
 
             loop_counter += 1
             if loop_counter % 50 == 0:
