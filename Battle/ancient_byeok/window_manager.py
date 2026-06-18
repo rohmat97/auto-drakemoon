@@ -9,7 +9,7 @@ def move_game_window(dm):
     if hwnd == 0:
         messagebox.showerror('Error', f"Game window '{GAME_TITLE}' not found, please start the game first!")
         sys.exit(1)
-    dm.MoveWindow(hwnd, 0, 0)
+    # dm.MoveWindow(hwnd, 0, 0)
     print(f"Moved '{GAME_TITLE}' window to top-left corner (0, 0)")
     dm.Delay(500)
     return hwnd

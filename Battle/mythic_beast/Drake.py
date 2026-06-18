@@ -38,6 +38,7 @@ DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 17)])
 paused = False
 anti_cheat_detected = False
 last_monster_seen_time = time.time()
+no_monster_search_count = 0
 
 
 def is_paused():
@@ -122,6 +123,18 @@ def play_alert_sound(dm):
         pass
 
 
+def check_community_popup(dm):
+    """Check for the Community popup and press ESC once to dismiss it.
+    Returns True if the popup was detected and dismissed."""
+    (_, x, _) = dm.FindPic(0, 0, 1024, 768, 'community.bmp', '050505', 0.8, 0)
+    if x > 0:
+        print('Community popup detected, pressing ESC to dismiss...')
+        dm.KeyPress(27)  # Press ESC once
+        dm.Delay(300)
+        return True
+    return False
+
+
 def is_in_battle(dm):
     (_, x, _) = dm.FindPic(959, 666, 1016, 747, 'battle.bmp', '050505', 0.8, 0)
     return x > 0
@@ -131,7 +144,7 @@ def is_in_battle(dm):
 # Overworld: find and engage a monster
 # ---------------------------------------------------------------------------
 def find_and_engage_monster(dm):
-    global last_monster_seen_time, anti_cheat_detected
+    global last_monster_seen_time, anti_cheat_detected, no_monster_search_count
     """Search for a monster on the overworld and attempt to enter battle.
     Returns True if battle was entered, False otherwise."""
     if check_revive(dm, is_paused):
@@ -142,12 +155,19 @@ def find_and_engage_monster(dm):
     check_dead_mercenary(dm)
     (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
     if x <= 0:
-        # if time.time() - last_monster_seen_time > 10.0:
-        #     print('No monsters found for 10 seconds, pressing Esc to close any open dialogs')
-        #     dm.KeyPress(27)
-        #     last_monster_seen_time = time.time()
+        current_time = time.time()
+        if current_time - last_monster_seen_time > 5.0:
+            no_monster_search_count += 1
+            print(f'[Active] Searching for monsters on overworld... ({no_monster_search_count}/5)')
+            last_monster_seen_time = current_time
+            if no_monster_search_count >= 5:
+                print('No monsters found 5 times, pressing ESC to dismiss any popups...')
+                dm.KeyPress(27)
+                dm.Delay(300)
+                no_monster_search_count = 0
         return False
 
+    no_monster_search_count = 0
     last_monster_seen_time = time.time()
     print(f'Monster found at coords: ({x}, {y})')
     dm.MoveTo(x, y)
@@ -332,6 +352,10 @@ def run_main_script():
             if paused:
                 gc.collect()  # Collect when paused
                 time.sleep(0.5)
+                continue
+
+            # Check for Community popup and dismiss it
+            if check_community_popup(dm):
                 continue
 
             battle_entered = find_and_engage_monster(dm)

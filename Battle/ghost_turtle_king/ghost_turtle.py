@@ -1,4 +1,4 @@
-# Drake.py — Main entrypoint and orchestrator (Dark Gujimo Elder)
+# Drake.py — Main entrypoint and orchestrator (Mythic Beast)
 
 from os import system
 import os
@@ -9,13 +9,9 @@ import winsound
 import gc
 from tkinter import messagebox
 
-# Ensure local modules (combat.py, config.py, etc.) are found first
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if _SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPT_DIR)
-
-# Add the project root for shared modules (PyGameAuto, etc.)
-_PROJECT_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, '..', '..'))
+# Add the project root so shared modules (PyGameAuto, etc.) can be found
+# Using append so local modules (combat.py, config.py, etc.) take priority
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 if _PROJECT_ROOT not in sys.path:
     sys.path.append(_PROJECT_ROOT)
 
@@ -143,15 +139,7 @@ def find_and_engage_monster(dm):
         time.sleep(5)  # Wait for the loading screen to pass
         return False
         
-    # Make sure ALL mercenaries are alive before engaging a monster
-    revive_attempts = 0
-    while check_dead_mercenary(dm):
-        revive_attempts += 1
-        if revive_attempts >= 3:
-            print('Still have dead mercenaries after 3 revive attempts, proceeding anyway...')
-            break
-        print(f'Re-checking for dead mercenaries (attempt {revive_attempts + 1})...')
-        time.sleep(0.5)
+    check_dead_mercenary(dm)
     (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
     if x <= 0:
         # if time.time() - last_monster_seen_time > 10.0:
@@ -314,13 +302,7 @@ def run_main_script():
                 print('All commands resumed...')
                 bind_game_window(dm, hwnd)
 
-    def on_page_down_press(event=None):
-        if event.name == 'page down':
-            print('Page Down pressed')
-            relogin(dm)
-
     keyboard.on_press_key('page up', on_page_up_press)
-    keyboard.on_press_key('page down', on_page_down_press)
 
     # Disable automatic GC to avoid stutters during time-sensitive key presses
     gc.disable()
@@ -329,22 +311,18 @@ def run_main_script():
     gc.collect()
 
     def relogin(dm):
-        dm.UnBindWindow()
         """Press Esc to open System Menu, then click 'Char Select'."""
         print('Relogin: Opening System Menu...')
         dm.KeyPress(27)  # Esc to open System Menu
         dm.Delay(500)
-        dm.KeyPress(27)  # Esc to open System Menu
-        dm.Delay(1000)
-        dm.MoveTo(509, 320)
-        dm.Delay(1000)
+        dm.MoveTo(509, 290)
+        dm.Delay(500)
         dm.LeftClick()
-        dm.Delay(1000)
+        dm.Delay(500)
         dm.KeyPress(13)
         dm.Delay(3000)
         dm.KeyPress(13)
-        dm.Delay(1000)
-        bind_game_window(dm, hwnd)
+        dm.Delay(500)
     
     try:
         loop_counter = 0
@@ -362,15 +340,14 @@ def run_main_script():
                 gc.collect()  # Clean up COM references and memory after battle
 
                 # If anti-cheat was detected, exit now that the battle is over
-                if anti_cheat_detected:
-                    print('Battle finished. Anti-cheat was detected, exiting now...')
-                    for _ in range(10):
-                        play_alert_sound(dm)
-                        dm.Delay(50)
-                        dm.KeyPress(27)
-                        dm.Delay(50)
-                    dm.delay(500)
-                    sys.exit(10)
+                # if anti_cheat_detected:
+                #     print('Battle finished. Anti-cheat was detected, exiting now...')
+                #     for _ in range(10):
+                #         play_alert_sound(dm)
+                #         time.sleep(0.5)
+                #     relogin(dm)
+                #     time.sleep(2)
+                #     sys.exit(10)
 
                 # Check revive and food after battle
                 check_revive(dm, is_paused)
@@ -383,19 +360,27 @@ def run_main_script():
                 battle_counter += 1
                 print(f'Battles completed: {battle_counter}/25')
                 if battle_counter >= 25:
-                    print('Reached 25 battles. Relogin...')
-                    time.sleep(5)
-                    dm.UnBindWindow()
-                    relogin(dm)
-                    battle_counter = 0
+                    print('Reached 25 battles. Restarting application...')
+                    time.sleep(0.5)
+                    if getattr(sys, 'frozen', None):
+                        import subprocess
+                        cwd = os.path.dirname(os.path.abspath(sys.executable))
+                        subprocess.Popen([sys.executable], cwd=cwd)
+                        sys.exit(0)
+                    else:
+                        system('cls')
+                        gc.collect()
+                        battle_counter = 0
+                        print('Cache cleared, continuing...')
+                        time.sleep(5)
 
             # Anti-cheat detected outside of battle — exit immediately
-            if anti_cheat_detected and not (battle_entered or is_in_battle(dm)):
-                print('Anti-cheat detected (not in battle), exiting now...')
-                for _ in range(10):
-                    play_alert_sound(dm)
-                    time.sleep(0.5)
-                sys.exit(10)
+            # if anti_cheat_detected and not (battle_entered or is_in_battle(dm)):
+            #     print('Anti-cheat detected (not in battle), exiting now...')
+            #     for _ in range(10):
+            #         play_alert_sound(dm)
+            #         time.sleep(0.5)
+            #     sys.exit(10)
 
             loop_counter += 1
             if loop_counter % 50 == 0:
