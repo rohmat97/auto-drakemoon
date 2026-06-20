@@ -37,7 +37,7 @@ MONSTER_IMAGES = '|'.join(
     [rf'dark_gujimo\elder{i}.bmp' for i in range(1, 12)] +
     [rf'dark_gujimo\goju{i}.bmp' for i in range(1, 12)]
 )
-DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 17)])
+DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 18)])
 
 # ---------------------------------------------------------------------------
 # Pause state  (shared via closure / global)
@@ -128,18 +128,6 @@ def play_alert_sound(dm):
             winsound.PlaySound(sound_path, winsound.SND_FILENAME)
     except Exception:
         pass
-
-
-def check_community_popup(dm):
-    """Check for the Community popup and press ESC once to dismiss it.
-    Returns True if the popup was detected and dismissed."""
-    (_, x, _) = dm.FindPic(0, 0, 1024, 768, 'community.bmp', '050505', 0.8, 0)
-    if x > 0:
-        print('Community popup detected, pressing ESC to dismiss...')
-        dm.KeyPress(27)  # Press ESC once
-        dm.Delay(300)
-        return True
-    return False
 
 
 def is_in_battle(dm):
@@ -317,13 +305,19 @@ def run_main_script():
     dm.setPath(os.path.join(basedir, 'Resource'))
 
     paused = False
+    last_toggle_time = 0
 
     def on_page_up_press(event=None):
         global paused
+        nonlocal last_toggle_time
+        current_time = time.time()
+        if current_time - last_toggle_time < 0.3:
+            return
         if event.name == 'page up':
+            last_toggle_time = current_time
             paused = not paused
             if paused:
-                print('All commands paused, press Page Up to resume...')
+                print('All commands paused, press page up to resume...')
                 dm.UnBindWindow()
             else:
                 print('All commands resumed...')
@@ -361,38 +355,33 @@ def run_main_script():
                 time.sleep(0.5)
                 continue
 
-            # Check for Community popup and dismiss it
-            if check_community_popup(dm):
-                continue
-
             battle_entered = find_and_engage_monster(dm)
             if battle_entered or is_in_battle(dm):
                 handle_battle(dm)
                 gc.collect()  # Clean up COM references and memory after battle
 
                 # If anti-cheat was detected, exit now that the battle is over
-                if anti_cheat_detected:
-                    print('Battle finished. Anti-cheat was detected, exiting now...')
-                    for _ in range(10):
-                        play_alert_sound(dm)
-                        time.sleep(0.5)
-                    relogin(dm)
-                    time.sleep(2)
-                    sys.exit(10)
+                # if anti_cheat_detected:
+                #     print('Battle finished. Anti-cheat was detected, exiting now...')
+                #     for _ in range(10):
+                #         play_alert_sound(dm)
+                #         time.sleep(0.5)
+                #     relogin(dm)
+                #     time.sleep(2)
+                #     sys.exit(10)
 
                 # Check revive and food after battle
                 check_revive(dm, is_paused)
                 if check_food(dm):
                     paused = True
-                    print('All commands paused, press Page Up to resume...')
+                    print('All commands paused, press page down to resume...')
                     dm.UnBindWindow()
                     continue
 
                 battle_counter += 1
-                print(f'Battles completed: {battle_counter}/10')
-                if battle_counter >= 10:
-                    print('Reached 10 battles. Restarting application...')
-                    dm.UnBindWindow()
+                print(f'Battles completed: {battle_counter}/25')
+                if battle_counter >= 25:
+                    print('Reached 25 battles. Restarting application...')
                     time.sleep(0.5)
                     if getattr(sys, 'frozen', None):
                         import subprocess
@@ -400,16 +389,22 @@ def run_main_script():
                         subprocess.Popen([sys.executable], cwd=cwd)
                         sys.exit(0)
                     else:
+                        system('cls')
+                        gc.collect()
+                        battle_counter = 0
+                        print('Cache cleared, continuing...')
                         time.sleep(5)
-                        sys.exit(5)  # Exit code 5 signals run.bat to restart
+                        relogin(dm)
+                        time.sleep(15)
 
-            # Anti-cheat detected outside of battle — exit immediately
-            if anti_cheat_detected and not (battle_entered or is_in_battle(dm)):
-                print('Anti-cheat detected (not in battle), exiting now...')
-                for _ in range(10):
-                    play_alert_sound(dm)
-                    time.sleep(0.5)
-                sys.exit(10)
+
+            # # Anti-cheat detected outside of battle — exit immediately
+            # if anti_cheat_detected and not (battle_entered or is_in_battle(dm)):
+            #     print('Anti-cheat detected (not in battle), exiting now...')
+            #     for _ in range(10):
+            #         play_alert_sound(dm)
+            #         time.sleep(0.5)
+            #     sys.exit(10)
 
             loop_counter += 1
             if loop_counter % 50 == 0:

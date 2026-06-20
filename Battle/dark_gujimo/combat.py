@@ -174,7 +174,7 @@ def strategy_south_east(dm):
     dm.Delay(50)
     dm.MoveTo(1000, 478)
     time.sleep(0.33)
-    dm.MoveTo(250, 376)
+    dm.MoveTo(350, 376)
     dm.Delay(50)
     dm.KeyDown(39)
     time.sleep(0.35)

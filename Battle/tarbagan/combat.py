@@ -120,12 +120,10 @@ def strategy_east_south(dm):
     dm.Delay(50)
     dm.KeyPress(87)
     dm.Delay(50)
-    # press left arrow 3 times
-    for i in range(2):
-        dm.KeyDown(37)
-        time.sleep(0.15)
-        dm.KeyUp(37)
-        dm.Delay(50)
+    dm.KeyDown(37)
+    time.sleep(0.15)
+    dm.KeyUp(37)
+    dm.Delay(50)
     dm.MoveTo(351, 451)
     dm.Delay(50)
     execute_skill_loop(dm)
@@ -272,7 +270,7 @@ def strategy_west_east(dm):
    
 
 def strategy_west_south(dm):
-    dm.MoveTo(1022, 352)
+    dm.MoveTo(1200, 352)
     time.sleep(0.66)
     dm.MoveTo(12, 442)
     time.sleep(0.66)
@@ -361,7 +359,7 @@ def strategy_north_west(dm):
     dm.Delay(50)
     dm.MoveTo(201, 80)
     dm.Delay(50)
-    dm.MoveTo(100, 300)
+    dm.MoveTo(50, 200)
     dm.Delay(50)
     dm.KeyPress(81)
     dm.Delay(50)

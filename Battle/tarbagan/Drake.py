@@ -1,5 +1,6 @@
 # Drake.py — Main entrypoint and orchestrator (Dark Gujimo Elder)
 
+from Battle.dark_gujimo.combat import execute_skill_loop
 from os import system
 import os
 import sys
@@ -266,6 +267,21 @@ def handle_battle(dm):
             no_monster_count += 1
             if no_monster_count >= 5:
                 print('No monsters found 5 times. Exiting battle by pressing Esc 2 times...')
+                dm.MoveTo(821, 612)
+                dm.Delay(50)
+                dm.KeyDown(39)
+                dm.Delay(50)
+                dm.KeyUp(39)
+                dm.Delay(50)
+                dm.KeyPress(81)
+                dm.Delay(50)
+                dm.KeyPress(87)
+                dm.Delay(50)
+                execute_skill_loop(dm)
+                dm.Delay(50)
+                execute_skill_loop(dm)
+                time.sleep(5)
+                dm.Delay(50)
                 dm.KeyPress(27)
                 dm.Delay(100)
                 dm.KeyPress(27)
@@ -407,6 +423,8 @@ def run_main_script():
                         battle_counter = 0
                         print('Cache cleared, continuing...')
                         time.sleep(5)
+                        relogin(dm)
+                        time.sleep(15)
 
 
             # # Anti-cheat detected outside of battle — exit immediately
