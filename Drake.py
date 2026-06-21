@@ -46,6 +46,7 @@ def is_paused():
 def check_food(dm):
     """Check hunger level and consume food if needed.
     Returns True if script should pause (food exhausted)."""
+    global paused
     if not hasattr(check_food, "eat_count"):
         check_food.eat_count = 0
 
@@ -63,15 +64,21 @@ def check_food(dm):
         dm.Delay(100)
         
         check_food.eat_count += 1
+        print('Replenished satiety 500 times, pausing script... ' + str(check_food.eat_count) + '/500')
         if check_food.eat_count >= 500:
-            print('Replenished satiety 500 times, pausing script...')
             check_food.eat_count = 0
+            paused = True
+            print('All commands paused, press Page Up to resume...')
+            dm.UnBindWindow()
             return True
 
     (_, x_empty, y_empty) = dm.FindPic(582, 418, 617, 446, 'emptyfooddrake.bmp', '050505', 0.8, 0)
     if x_empty > 0:
         print('Satiety depleted, script paused')
         check_food.eat_count = 0
+        paused = True
+        print('All commands paused, press Page Up to resume...')
+        dm.UnBindWindow()
         return True
     return False
 
@@ -380,11 +387,7 @@ def run_main_script():
 
                 # Check revive and food after battle
                 check_revive(dm, is_paused)
-                if check_food(dm):
-                    paused = True
-                    print('All commands paused, press Page Up to resume...')
-                    dm.UnBindWindow()
-                    continue
+                check_food(dm)
 
                 battle_counter += 1
                 print(f'Battles completed: {battle_counter}/2')
