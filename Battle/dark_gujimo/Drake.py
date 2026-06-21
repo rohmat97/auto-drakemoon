@@ -76,8 +76,22 @@ def check_food(dm):
         dm.Delay(100)
         
         check_food.eat_count += 1
-         print('Replenished satiety 500 times, pausing script... ' + str(check_food.eat_count) + '/500')
+        print('Replenished satiety 500 times, pausing script... ' + str(check_food.eat_count) + '/500')
         if check_food.eat_count >= 500:
+            def logout(dm):
+                print('Logout: Opening System Menu...')
+                dm.KeyPress(27)  # Esc to open System Menu
+                dm.Delay(500)
+                dm.MoveTo(509, 290)
+                dm.Delay(500)
+                dm.LeftClick()
+                dm.Delay(500)
+                dm.KeyPress(13)
+                dm.Delay(3000)
+                dm.KeyPress(13)
+                dm.Delay(500)
+            
+            logout(dm)
             check_food.eat_count = 0
             paused = True
             print('All commands paused, press page down to resume...')
