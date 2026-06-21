@@ -35,7 +35,7 @@ from Battle.tarbagan.combat import (
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
 MONSTER_IMAGES = '|'.join([rf'tarbagan\tarbagan{i}.bmp' for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 24, 25]])
-DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 18)])
+DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 20)])
 
 # ---------------------------------------------------------------------------
 # Pause state  (shared via closure / global)
@@ -56,29 +56,39 @@ def is_paused():
 def check_food(dm):
     """Check hunger level and consume food if needed.
     Returns True if script should pause (food exhausted)."""
-    (_, x_food, _) = dm.FindPic(52, 649, 246, 684, 'food.bmp', '050505', 0.8, 0)
-    (_, x_bread, _) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
+    if not hasattr(check_food, "eat_count"):
+        check_food.eat_count = 0
+
+    (_, x_food, y_food) = dm.FindPic(52, 649, 246, 684, 'food.bmp', '050505', 0.8, 0)
+    (_, x_bread, y_bread) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
 
     if x_food > 0:
-        # Satiety is sufficient, no print to avoid console spam
-        pass
+        # Satiety is sufficient, reset the eat counter
+        check_food.eat_count = 0
     elif x_bread > 0:
         print('Replenishing satiety')
         dm.KeyDown(18)
         dm.KeyPress(50)
         dm.KeyUp(18)
+        dm.Delay(100)
+        
+        check_food.eat_count += 1
+        if check_food.eat_count >= 500:
+            print('Replenished satiety 500 times, pausing script...')
+            check_food.eat_count = 0
+            return True
 
-    (_, x_empty, _) = dm.FindPic(582, 418, 617, 446, 'emptyfooddrake.bmp', '050505', 0.8, 0)
+    (_, x_empty, y_empty) = dm.FindPic(582, 418, 617, 446, 'emptyfooddrake.bmp', '050505', 0.8, 0)
     if x_empty > 0:
         print('Satiety depleted, script paused')
+        check_food.eat_count = 0
         return True
     return False
 
 
-
 def check_dead_mercenary(dm):
     """If a dead mercenary is detected, consume half-chicken soup."""
-    (_, x, _) = dm.FindPic(0, 0, 110, 650, DRAKE_IMAGES, '050505', 0.8, 0)
+    (_, x, _) = dm.FindPic(0, 0, 110, 850, DRAKE_IMAGES, '050505', 0.8, 0)
     if x > 0:
         print('Dead mercenary detected, opening inventory to revive...')
         # Press 'i' to open inventory
@@ -99,7 +109,7 @@ def check_dead_mercenary(dm):
         for key in keys:
             dm.KeyPress(key)
             dm.Delay(100)  # Increased delay to allow inventory UI to load
-            dm.MoveTo(600,150)
+            dm.MoveTo(600, 150)
             dm.Delay(100)
             dm.RightClick()
             dm.Delay(100)
@@ -267,20 +277,6 @@ def handle_battle(dm):
             no_monster_count += 1
             if no_monster_count >= 5:
                 print('No monsters found 5 times. Exiting battle by pressing Esc 2 times...')
-                dm.MoveTo(821, 612)
-                dm.Delay(50)
-                dm.KeyDown(39)
-                dm.Delay(50)
-                dm.KeyUp(39)
-                dm.Delay(50)
-                dm.KeyPress(81)
-                dm.Delay(50)
-                dm.KeyPress(87)
-                dm.Delay(50)
-                execute_skill_loop(dm)
-                dm.Delay(50)
-                execute_skill_loop(dm)
-                time.sleep(5)
                 dm.Delay(50)
                 dm.KeyPress(27)
                 dm.Delay(100)

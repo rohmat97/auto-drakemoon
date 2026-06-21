@@ -55,24 +55,34 @@ def is_paused():
 def check_food(dm):
     """Check hunger level and consume food if needed.
     Returns True if script should pause (food exhausted)."""
-    (_, x_food, _) = dm.FindPic(52, 649, 246, 684, 'food.bmp', '050505', 0.8, 0)
-    (_, x_bread, _) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
+    if not hasattr(check_food, "eat_count"):
+        check_food.eat_count = 0
+
+    (_, x_food, y_food) = dm.FindPic(52, 649, 246, 684, 'food.bmp', '050505', 0.8, 0)
+    (_, x_bread, y_bread) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
 
     if x_food > 0:
-        # Satiety is sufficient, no print to avoid console spam
-        pass
+        # Satiety is sufficient, reset the eat counter
+        check_food.eat_count = 0
     elif x_bread > 0:
         print('Replenishing satiety')
         dm.KeyDown(18)
         dm.KeyPress(50)
         dm.KeyUp(18)
+        dm.Delay(100)
+        
+        check_food.eat_count += 1
+        if check_food.eat_count >= 500:
+            print('Replenished satiety 500 times, pausing script...')
+            check_food.eat_count = 0
+            return True
 
-    (_, x_empty, _) = dm.FindPic(582, 418, 617, 446, 'emptyfooddrake.bmp', '050505', 0.8, 0)
+    (_, x_empty, y_empty) = dm.FindPic(582, 418, 617, 446, 'emptyfooddrake.bmp', '050505', 0.8, 0)
     if x_empty > 0:
         print('Satiety depleted, script paused')
+        check_food.eat_count = 0
         return True
     return False
-
 
 
 def check_dead_mercenary(dm):

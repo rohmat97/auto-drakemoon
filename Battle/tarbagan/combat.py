@@ -121,7 +121,7 @@ def strategy_east_south(dm):
     dm.KeyPress(87)
     dm.Delay(50)
     dm.KeyDown(37)
-    time.sleep(0.15)
+    time.sleep(0.25)
     dm.KeyUp(37)
     dm.Delay(50)
     dm.MoveTo(351, 451)
@@ -271,11 +271,10 @@ def strategy_west_east(dm):
 
 def strategy_west_south(dm):
     dm.MoveTo(1200, 352)
-    time.sleep(0.66)
-    dm.MoveTo(12, 442)
-    time.sleep(0.66)
     dm.Delay(50)
-    dm.MoveTo(300, 375)
+    dm.MoveTo(12, 442)
+    dm.Delay(50)
+    dm.MoveTo(300, 675)
     dm.Delay(50)
     dm.KeyPress(81)
     dm.Delay(50)
