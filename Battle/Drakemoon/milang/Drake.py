@@ -67,14 +67,15 @@ def check_food(dm):
         check_food.eat_count = 0
     elif x_bread > 0:
         print('Replenishing satiety')
-        dm.KeyDown(18)
-        dm.KeyPress(50)
-        dm.KeyUp(18)
-        dm.Delay(100)
+        if (check_food.eat_count % 2 == 0):
+            dm.KeyDown(18)
+            dm.KeyPress(50)
+            dm.KeyUp(18)
+            dm.Delay(100)
         
         check_food.eat_count += 1
         print('Replenished satiety 500 times, pausing script... ' + str(check_food.eat_count) + '/500')
-        if check_food.eat_count >= 500:
+        if check_food.eat_count >= 800:
             def logout(dm):
                 print('Logout: Opening System Menu...')
                 dm.KeyPress(27)  # Esc to open System Menu
