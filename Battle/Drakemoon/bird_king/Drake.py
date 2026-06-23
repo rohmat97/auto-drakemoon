@@ -1,6 +1,5 @@
 # Drake.py — Main entrypoint and orchestrator (Dark Gujimo Elder)
 
-from Battle.dark_gujimo.combat import execute_skill_loop
 from os import system
 import os
 import sys
@@ -16,7 +15,7 @@ if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
 # Add the project root for shared modules (PyGameAuto, etc.)
-_PROJECT_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, '..', '..'))
+_PROJECT_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, '..', '..', '..'))
 if _PROJECT_ROOT not in sys.path:
     sys.path.append(_PROJECT_ROOT)
 
@@ -26,7 +25,7 @@ from config import (
     FORMATION_REGIONS, MONSTER_DIRECTION_REGIONS, MONSTER_CHECKS,
 )
 from window_manager import move_game_window, bind_game_window
-from Battle.tarbagan.combat import (
+from Battle.Drakemoon.bird_king.combat import (
     check_revive, has_non_black_in_region, check_formation,
     execute_battle_strategy,
 )
@@ -34,9 +33,10 @@ from Battle.tarbagan.combat import (
 # ---------------------------------------------------------------------------
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
-MONSTER_IMAGES = '|'.join([rf'tarbagan\tarbagan{i}.bmp' for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 24, 25]])
-DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 20)])
-
+MONSTER_IMAGES = '|'.join(
+    [rf'bird_king\bk{i}.bmp' for i in range(1, 26)]
+)
+DRAKE_IMAGES = '|'.join([rf'Character\drakemoon\drake{i}.bmp' for i in range(1, 12)])
 # ---------------------------------------------------------------------------
 # Pause state  (shared via closure / global)
 # ---------------------------------------------------------------------------
@@ -109,7 +109,7 @@ def check_food(dm):
 
 def check_dead_mercenary(dm):
     """If a dead mercenary is detected, consume half-chicken soup."""
-    (_, x, _) = dm.FindPic(0, 0, 110, 850, DRAKE_IMAGES, '050505', 0.8, 0)
+    (_, x, _) = dm.FindPic(0, 0, 110, 650, DRAKE_IMAGES, '050505', 0.8, 0)
     if x > 0:
         print('Dead mercenary detected, opening inventory to revive...')
         # Press 'i' to open inventory
@@ -130,7 +130,7 @@ def check_dead_mercenary(dm):
         for key in keys:
             dm.KeyPress(key)
             dm.Delay(100)  # Increased delay to allow inventory UI to load
-            dm.MoveTo(600, 150)
+            dm.MoveTo(600,150)
             dm.Delay(100)
             dm.RightClick()
             dm.Delay(100)
@@ -157,18 +157,6 @@ def play_alert_sound(dm):
             winsound.PlaySound(sound_path, winsound.SND_FILENAME)
     except Exception:
         pass
-
-
-def check_community_popup(dm):
-    """Check for the Community popup and press ESC once to dismiss it.
-    Returns True if the popup was detected and dismissed."""
-    (_, x, _) = dm.FindPic(0, 0, 1024, 768, 'community.bmp', '050505', 0.8, 0)
-    if x > 0:
-        print('Community popup detected, pressing ESC to dismiss...')
-        dm.KeyPress(27)  # Press ESC once
-        dm.Delay(300)
-        return True
-    return False
 
 
 def is_in_battle(dm):
@@ -298,7 +286,6 @@ def handle_battle(dm):
             no_monster_count += 1
             if no_monster_count >= 5:
                 print('No monsters found 5 times. Exiting battle by pressing Esc 2 times...')
-                dm.Delay(50)
                 dm.KeyPress(27)
                 dm.Delay(100)
                 dm.KeyPress(27)
@@ -355,17 +342,17 @@ def run_main_script():
         current_time = time.time()
         if current_time - last_toggle_time < 0.3:
             return
-        if event.name == 'page down':
+        if event.name == 'page up':
             last_toggle_time = current_time
             paused = not paused
             if paused:
-                print('All commands paused, press page down to resume...')
+                print('All commands paused, press page up to resume...')
                 dm.UnBindWindow()
             else:
                 print('All commands resumed...')
                 bind_game_window(dm, hwnd)
 
-    keyboard.on_press_key('page down', on_page_up_press)
+    keyboard.on_press_key('page up', on_page_up_press)
 
     # Disable automatic GC to avoid stutters during time-sensitive key presses
     gc.disable()
@@ -395,10 +382,6 @@ def run_main_script():
             if paused:
                 gc.collect()  # Collect when paused
                 time.sleep(0.5)
-                continue
-
-            # Check for Community popup and dismiss it
-            if check_community_popup(dm):
                 continue
 
             battle_entered = find_and_engage_monster(dm)
