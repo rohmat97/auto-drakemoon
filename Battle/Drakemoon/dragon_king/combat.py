@@ -155,6 +155,12 @@ def strategy_east_north(dm):
     dm.Delay(50)
     dm.MoveTo(462, 50)
     dm.Delay(50)
+    # press arrow top 3 times
+    for _ in range(3):
+        dm.KeyDown(38)
+        dm.Delay(50)
+        dm.KeyUp(38)
+        dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
     execute_skill_loop(dm)

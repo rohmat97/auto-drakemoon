@@ -140,6 +140,19 @@ def check_anti_cheat(dm):
     return False
 
 
+def check_stamina(dm):
+    """Check for the no stamina indicator. Pauses, unbinds, and shows popup if detected."""
+    global paused
+    (_, x_no_stamina, _) = dm.FindPic(90, 695, 99, 703, 'nostamina.bmp', '050505', 1, 0)
+    if x_no_stamina >= 0:
+        print('No stamina detected, pausing...')
+        paused = True
+        dm.UnBindWindow()
+        messagebox.showinfo('No Stamina', 'No stamina detected, pausing...')
+        return True
+    return False
+
+
 def play_alert_sound(dm):
     """Play an alert sound when anti-cheat is triggered."""
     try:
@@ -391,6 +404,9 @@ def run_main_script():
         battle_counter = 0
         last_refresh_time = time.time()
         while True:
+            if check_stamina(dm):
+                break
+
             if paused:
                 gc.collect()  # Collect when paused
                 time.sleep(0.5)

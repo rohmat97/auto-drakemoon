@@ -15,7 +15,7 @@ if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
 # Add the project root for shared modules (PyGameAuto, etc.)
-_PROJECT_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, '..', '..'))
+_PROJECT_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, '..', '..', '..'))
 if _PROJECT_ROOT not in sys.path:
     sys.path.append(_PROJECT_ROOT)
 
@@ -25,7 +25,7 @@ from config import (
     FORMATION_REGIONS, MONSTER_DIRECTION_REGIONS, MONSTER_CHECKS,
 )
 from window_manager import move_game_window, bind_game_window
-from Battle.dragon_king.combat import (
+from Battle.Drakemoon.dragon_king.combat import (
     check_revive, has_non_black_in_region, check_formation,
     execute_battle_strategy,
 )
@@ -145,6 +145,19 @@ def check_anti_cheat(dm):
     (_, x_horse, _) = dm.FindPic(599, 21, 650, 49, r'anti_cheat\horse.bmp', '050505', 0.8, 0)
     (_, x_bread, _) = dm.FindPic(50, 650, 93, 689, r'anti_cheat\bread.bmp', '050505', 0.8, 0)
     if x_horse <= 0 and x_bread > 0:
+        return True
+    return False
+
+
+def check_stamina(dm):
+    """Check for the no stamina indicator. Pauses, unbinds, and shows popup if detected."""
+    global paused
+    (_, x_no_stamina, _) = dm.FindPic(90, 695, 99, 703, 'nostamina.bmp', '050505', 1, 0)
+    if x_no_stamina >= 0:
+        print('No stamina detected, pausing...')
+        paused = True
+        dm.UnBindWindow()
+        messagebox.showinfo('No Stamina', 'No stamina detected, pausing...')
         return True
     return False
 
@@ -385,6 +398,9 @@ def run_main_script():
         battle_counter = 0
         last_refresh_time = time.time()
         while True:
+            if check_stamina(dm):
+                break
+
             if paused:
                 gc.collect()  # Collect when paused
                 time.sleep(0.5)
