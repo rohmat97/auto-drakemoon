@@ -318,8 +318,8 @@ def handle_battle(dm):
 
         if not action_executed:
             no_monster_count += 1
-            if no_monster_count >= 5:
-                print('No monsters found 5 times. Exiting battle by pressing Esc 2 times...')
+            if no_monster_count >= 20:
+                print('No monsters found 20 times. Exiting battle by pressing Esc 2 times...')
                 dm.KeyPress(27)
                 dm.Delay(100)
                 dm.KeyPress(27)
@@ -327,7 +327,7 @@ def handle_battle(dm):
                 time.sleep(2)
                 no_monster_count = 0
             else:
-                time.sleep(0.5)
+                time.sleep(0.25)
 
         # Check if battle ended
         if not is_in_battle(dm):

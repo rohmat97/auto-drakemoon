@@ -34,7 +34,7 @@ from Battle.Rexd.ikan_tol.combat import (
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
 MONSTER_IMAGES = '|'.join([rf'fish\fish{i}.bmp' for i in range(1, 21)])
-DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 18)])
+CHARACTER = '|'.join([rf'Character\rexd\rexd{i}.bmp' for i in range(1, 11)])
 
 # ---------------------------------------------------------------------------
 # Pause state  (shared via closure / global)
@@ -109,7 +109,7 @@ def check_food(dm):
 
 def check_dead_mercenary(dm):
     """If a dead mercenary is detected, consume half-chicken soup."""
-    (_, x, _) = dm.FindPic(0, 0, 110, 650, DRAKE_IMAGES, '050505', 0.8, 0)
+    (_, x, _) = dm.FindPic(0, 0, 110, 650, CHARACTER, '050505', 0.8, 0)
     if x > 0:
         print('Dead mercenary detected, opening inventory to revive...')
         # Press 'i' to open inventory
@@ -309,8 +309,8 @@ def handle_battle(dm):
 
         if not action_executed:
             no_monster_count += 1
-            if no_monster_count >= 5:
-                print('No monsters found 5 times. Exiting battle by pressing Esc 2 times...')
+            if no_monster_count >= 20:
+                print('No monsters found 20 times. Exiting battle by pressing Esc 2 times...')
                 dm.KeyPress(27)
                 dm.Delay(100)
                 dm.KeyPress(27)
@@ -318,7 +318,7 @@ def handle_battle(dm):
                 time.sleep(2)
                 no_monster_count = 0
             else:
-                time.sleep(0.5)
+                time.sleep(0.25)
 
         # Check if battle ended
         if not is_in_battle(dm):
