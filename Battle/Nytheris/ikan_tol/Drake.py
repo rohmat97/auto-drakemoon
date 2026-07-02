@@ -52,6 +52,21 @@ def is_paused():
 # ---------------------------------------------------------------------------
 # Overworld helpers
 # ---------------------------------------------------------------------------
+def relogin(dm):
+    """Press Esc to open System Menu, then click 'Char Select'."""
+    print('Relogin: Opening System Menu...')
+    dm.KeyPress(27)  # Esc to open System Menu
+    dm.Delay(500)
+    dm.MoveTo(509, 290)
+    dm.Delay(500)
+    dm.LeftClick()
+    dm.Delay(500)
+    dm.KeyPress(13)
+    dm.Delay(3000)
+    dm.KeyPress(13)
+    dm.Delay(500)
+
+
 def check_food(dm):
     """Check hunger level and consume food if needed.
     Returns True if script should pause (food exhausted)."""
@@ -60,12 +75,13 @@ def check_food(dm):
         check_food.eat_count = 0
 
     (_, x_food, y_food) = dm.FindPic(52, 649, 246, 684, 'food.bmp', '050505', 0.8, 0)
-    (_, x_bread, y_bread) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
-
     if x_food > 0:
         # Satiety is sufficient, reset the eat counter
         check_food.eat_count = 0
-    elif x_bread > 0:
+        return False
+
+    (_, x_bread, y_bread) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
+    if x_bread > 0:
         print('Replenishing satiety')
         if (check_food.eat_count % 2 == 0):
             dm.KeyDown(18)
@@ -76,20 +92,7 @@ def check_food(dm):
         check_food.eat_count += 1
         print('Replenished satiety 500 times, pausing script... ' + str(check_food.eat_count) + '/500')
         if check_food.eat_count >= 800:
-            def logout(dm):
-                print('Logout: Opening System Menu...')
-                dm.KeyPress(27)  # Esc to open System Menu
-                dm.Delay(500)
-                dm.MoveTo(509, 290)
-                dm.Delay(500)
-                dm.LeftClick()
-                dm.Delay(500)
-                dm.KeyPress(13)
-                dm.Delay(3000)
-                dm.KeyPress(13)
-                dm.Delay(500)
-            
-            logout(dm)
+            relogin(dm)
             check_food.eat_count = 0
             paused = True
             print('All commands paused, press delete to resume...')
@@ -239,7 +242,7 @@ def find_and_engage_monster(dm):
     start_time = time.time()
     attempt = 1
 
-    while time.time() - start_time < 3.5:
+    while time.time() - start_time < 1.5:
         if check_anti_cheat(dm):
             print('Anti-cheat (horse stamp) detected, will exit after current battle finishes')
             anti_cheat_detected = True
@@ -258,7 +261,7 @@ def find_and_engage_monster(dm):
 
         time.sleep(0.08)
 
-    time.sleep(0.5)
+    time.sleep(0.1)
     return False
 
 # ---------------------------------------------------------------------------
@@ -390,20 +393,7 @@ def run_main_script():
     # Perform initial collection
     gc.collect()
 
-    def relogin(dm):
-        """Press Esc to open System Menu, then click 'Char Select'."""
-        print('Relogin: Opening System Menu...')
-        dm.KeyPress(27)  # Esc to open System Menu
-        dm.Delay(500)
-        dm.MoveTo(509, 290)
-        dm.Delay(500)
-        dm.LeftClick()
-        dm.Delay(500)
-        dm.KeyPress(13)
-        dm.Delay(3000)
-        dm.KeyPress(13)
-        dm.Delay(500)
-    
+
     try:
         loop_counter = 0
         battle_counter = 0
