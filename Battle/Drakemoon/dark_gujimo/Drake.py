@@ -187,19 +187,30 @@ def find_and_engage_monster(dm):
     global last_monster_seen_time, anti_cheat_detected, no_monster_search_count
     """Search for a monster on the overworld and attempt to enter battle.
     Returns True if battle was entered, False otherwise."""
-    if check_revive(dm, is_paused):
-        print('Waiting for town to load after reviving main character...')
-        time.sleep(5)  # Wait for the loading screen to pass
-        return False
+    current_time = time.time()
+    if not hasattr(find_and_engage_monster, "last_revive_check"):
+        find_and_engage_monster.last_revive_check = 0
+    if not hasattr(find_and_engage_monster, "last_dead_check"):
+        find_and_engage_monster.last_dead_check = 0
+
+    if current_time - find_and_engage_monster.last_revive_check > 5.0:
+        find_and_engage_monster.last_revive_check = current_time
+        if check_revive(dm, is_paused):
+            print('Waiting for town to load after reviving main character...')
+            time.sleep(5)  # Wait for the loading screen to pass
+            return False
         
-    check_dead_mercenary(dm)
+    if current_time - find_and_engage_monster.last_dead_check > 5.0:
+        find_and_engage_monster.last_dead_check = current_time
+        check_dead_mercenary(dm)
+
     (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
     if x <= 0:
-        current_time = time.time()
-        if current_time - last_monster_seen_time > 5.0:
+        current_time_check = time.time()
+        if current_time_check - last_monster_seen_time > 2.5:
             no_monster_search_count += 1
             print(f'[Active] Searching for monsters on overworld... ({no_monster_search_count}/5)')
-            last_monster_seen_time = current_time
+            last_monster_seen_time = current_time_check
             if no_monster_search_count >= 5:
                 print('No monsters found 5 times, pressing ESC to dismiss any popups...')
                 dm.KeyPress(27)
@@ -241,7 +252,6 @@ def find_and_engage_monster(dm):
     time.sleep(0.5)
     return False
 
-
 # ---------------------------------------------------------------------------
 # Battle phase: detect formation and execute strategy
 # ---------------------------------------------------------------------------
@@ -261,7 +271,6 @@ def handle_battle(dm):
             for _ in range(4):
                 dm.KeyPress(27)
                 dm.Delay(30)
-                time.sleep(0.1)
             
             # Wait for battle screen to actually end (i.e. is_in_battle returns False)
             print('Waiting for battle screen to close...')
@@ -271,7 +280,6 @@ def handle_battle(dm):
                 if not is_in_battle(dm):
                     battle_closed = True
                     break
-                time.sleep(0.2)
             if battle_closed:
                 print('Battle screen ended')
             else:
@@ -280,25 +288,23 @@ def handle_battle(dm):
             check_revive(dm, is_paused)
             check_dead_mercenary(dm)
             break
-
-        for direction, regions in FORMATION_REGIONS.items():
-            if action_executed:
-                break
-
-            if check_formation(dm, regions[0], regions[1]):
-                print(f'Formation position detected: {direction}')
-                time.sleep(0.1)
-
-                for monster_dir in MONSTER_CHECKS[direction]:
-                    (x1, y1, x2, y2) = MONSTER_DIRECTION_REGIONS[monster_dir]
-                    if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
-                        print(f'Executing strategy → Formation: {direction} | Monster: {monster_dir}')
-                        execute_battle_strategy(dm, direction, monster_dir)
-                        time.sleep(12)
-                        action_executed = True
-                        break
+           
 
         if not action_executed:
+            for direction, regions in FORMATION_REGIONS.items():
+                if check_formation(dm, regions[0], regions[1]):
+                    print(f'Formation position detected: {direction}')
+                    time.sleep(0.1)
+
+                    for monster_dir in MONSTER_CHECKS[direction]:
+                        (x1, y1, x2, y2) = MONSTER_DIRECTION_REGIONS[monster_dir]
+                        if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
+                            print(f'Executing strategy → Formation: {direction} | Monster: {monster_dir}')
+                            execute_battle_strategy(dm, direction, monster_dir)
+                            time.sleep(12)
+                            action_executed = True
+                            break
+
             no_monster_count += 1
             if no_monster_count >= 20:
                 print('No monsters found 20 times. Exiting battle by pressing Esc 2 times...')
@@ -309,7 +315,7 @@ def handle_battle(dm):
                 time.sleep(2)
                 no_monster_count = 0
             else:
-                time.sleep(0.25)
+                time.sleep(0.1)
 
         # Check if battle ended
         if not is_in_battle(dm):
@@ -322,8 +328,7 @@ def handle_battle(dm):
                 check_dead_mercenary(dm)
             break
         else:
-            time.sleep(0.5)
-
+            time.sleep(0.1)
 
 # ---------------------------------------------------------------------------
 # Main game loop

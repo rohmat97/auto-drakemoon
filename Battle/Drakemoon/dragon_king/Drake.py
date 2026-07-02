@@ -92,7 +92,7 @@ def check_food(dm):
             logout(dm)
             check_food.eat_count = 0
             paused = True
-            print('All commands paused, press Page Up to resume...')
+            print('All commands paused, press page down to resume...')
             dm.UnBindWindow()
             return True
 
@@ -101,7 +101,7 @@ def check_food(dm):
         print('Satiety depleted, script paused')
         check_food.eat_count = 0
         paused = True
-        print('All commands paused, press Page Up to resume...')
+        print('All commands paused, press page down to resume...')
         dm.UnBindWindow()
         return True
     return False
@@ -172,18 +172,6 @@ def play_alert_sound(dm):
         pass
 
 
-def check_community_popup(dm):
-    """Check for the Community popup and press ESC once to dismiss it.
-    Returns True if the popup was detected and dismissed."""
-    (_, x, _) = dm.FindPic(0, 0, 1024, 768, 'community.bmp', '050505', 0.8, 0)
-    if x > 0:
-        print('Community popup detected, pressing ESC to dismiss...')
-        dm.KeyPress(27)  # Press ESC once
-        dm.Delay(300)
-        return True
-    return False
-
-
 def is_in_battle(dm):
     (_, x, _) = dm.FindPic(959, 666, 1016, 747, 'battle.bmp', '050505', 0.8, 0)
     return x > 0
@@ -196,19 +184,30 @@ def find_and_engage_monster(dm):
     global last_monster_seen_time, anti_cheat_detected, no_monster_search_count
     """Search for a monster on the overworld and attempt to enter battle.
     Returns True if battle was entered, False otherwise."""
-    if check_revive(dm, is_paused):
-        print('Waiting for town to load after reviving main character...')
-        time.sleep(5)  # Wait for the loading screen to pass
-        return False
+    current_time = time.time()
+    if not hasattr(find_and_engage_monster, "last_revive_check"):
+        find_and_engage_monster.last_revive_check = 0
+    if not hasattr(find_and_engage_monster, "last_dead_check"):
+        find_and_engage_monster.last_dead_check = 0
+
+    if current_time - find_and_engage_monster.last_revive_check > 5.0:
+        find_and_engage_monster.last_revive_check = current_time
+        if check_revive(dm, is_paused):
+            print('Waiting for town to load after reviving main character...')
+            time.sleep(5)  # Wait for the loading screen to pass
+            return False
         
-    check_dead_mercenary(dm)
+    if current_time - find_and_engage_monster.last_dead_check > 5.0:
+        find_and_engage_monster.last_dead_check = current_time
+        check_dead_mercenary(dm)
+
     (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
     if x <= 0:
-        current_time = time.time()
-        if current_time - last_monster_seen_time > 5.0:
+        current_time_check = time.time()
+        if current_time_check - last_monster_seen_time > 2.5:
             no_monster_search_count += 1
             print(f'[Active] Searching for monsters on overworld... ({no_monster_search_count}/5)')
-            last_monster_seen_time = current_time
+            last_monster_seen_time = current_time_check
             if no_monster_search_count >= 5:
                 print('No monsters found 5 times, pressing ESC to dismiss any popups...')
                 dm.KeyPress(27)
@@ -250,7 +249,6 @@ def find_and_engage_monster(dm):
     time.sleep(0.5)
     return False
 
-
 # ---------------------------------------------------------------------------
 # Battle phase: detect formation and execute strategy
 # ---------------------------------------------------------------------------
@@ -270,7 +268,6 @@ def handle_battle(dm):
             for _ in range(4):
                 dm.KeyPress(27)
                 dm.Delay(30)
-                time.sleep(0.1)
             
             # Wait for battle screen to actually end (i.e. is_in_battle returns False)
             print('Waiting for battle screen to close...')
@@ -280,7 +277,6 @@ def handle_battle(dm):
                 if not is_in_battle(dm):
                     battle_closed = True
                     break
-                time.sleep(0.2)
             if battle_closed:
                 print('Battle screen ended')
             else:
@@ -289,25 +285,23 @@ def handle_battle(dm):
             check_revive(dm, is_paused)
             check_dead_mercenary(dm)
             break
-
-        for direction, regions in FORMATION_REGIONS.items():
-            if action_executed:
-                break
-
-            if check_formation(dm, regions[0], regions[1]):
-                print(f'Formation position detected: {direction}')
-                time.sleep(0.1)
-
-                for monster_dir in MONSTER_CHECKS[direction]:
-                    (x1, y1, x2, y2) = MONSTER_DIRECTION_REGIONS[monster_dir]
-                    if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
-                        print(f'Executing strategy → Formation: {direction} | Monster: {monster_dir}')
-                        execute_battle_strategy(dm, direction, monster_dir)
-                        time.sleep(12)
-                        action_executed = True
-                        break
+           
 
         if not action_executed:
+            for direction, regions in FORMATION_REGIONS.items():
+                if check_formation(dm, regions[0], regions[1]):
+                    print(f'Formation position detected: {direction}')
+                    time.sleep(0.1)
+
+                    for monster_dir in MONSTER_CHECKS[direction]:
+                        (x1, y1, x2, y2) = MONSTER_DIRECTION_REGIONS[monster_dir]
+                        if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
+                            print(f'Executing strategy → Formation: {direction} | Monster: {monster_dir}')
+                            execute_battle_strategy(dm, direction, monster_dir)
+                            time.sleep(12)
+                            action_executed = True
+                            break
+
             no_monster_count += 1
             if no_monster_count >= 20:
                 print('No monsters found 20 times. Exiting battle by pressing Esc 2 times...')
@@ -318,7 +312,7 @@ def handle_battle(dm):
                 time.sleep(2)
                 no_monster_count = 0
             else:
-                time.sleep(0.25)
+                time.sleep(0.1)
 
         # Check if battle ended
         if not is_in_battle(dm):
@@ -332,7 +326,6 @@ def handle_battle(dm):
             break
         else:
             time.sleep(0.5)
-
 
 # ---------------------------------------------------------------------------
 # Main game loop
@@ -359,13 +352,19 @@ def run_main_script():
     dm.setPath(os.path.join(basedir, 'Resource'))
 
     paused = False
+    last_toggle_time = 0
 
     def on_page_up_press(event=None):
         global paused
+        nonlocal last_toggle_time
+        current_time = time.time()
+        if current_time - last_toggle_time < 0.3:
+            return
         if event.name == 'page up':
+            last_toggle_time = current_time
             paused = not paused
             if paused:
-                print('All commands paused, press Page Up to resume...')
+                print('All commands paused, press page up to resume...')
                 dm.UnBindWindow()
             else:
                 print('All commands resumed...')
@@ -406,24 +405,20 @@ def run_main_script():
                 time.sleep(0.5)
                 continue
 
-            # Check for Community popup and dismiss it
-            if check_community_popup(dm):
-                continue
-
             battle_entered = find_and_engage_monster(dm)
             if battle_entered or is_in_battle(dm):
                 handle_battle(dm)
                 gc.collect()  # Clean up COM references and memory after battle
 
                 # If anti-cheat was detected, exit now that the battle is over
-                if anti_cheat_detected:
-                    print('Battle finished. Anti-cheat was detected, exiting now...')
-                    for _ in range(10):
-                        play_alert_sound(dm)
-                        time.sleep(0.5)
-                    relogin(dm)
-                    time.sleep(2)
-                    sys.exit(10)
+                # if anti_cheat_detected:
+                #     print('Battle finished. Anti-cheat was detected, exiting now...')
+                #     for _ in range(10):
+                #         play_alert_sound(dm)
+                #         time.sleep(0.5)
+                #     relogin(dm)
+                #     time.sleep(2)
+                #     sys.exit(10)
 
                 # Check revive and food after battle
                 check_revive(dm, is_paused)
@@ -449,13 +444,13 @@ def run_main_script():
                         time.sleep(15)
 
 
-            # Anti-cheat detected outside of battle — exit immediately
-            if anti_cheat_detected and not (battle_entered or is_in_battle(dm)):
-                print('Anti-cheat detected (not in battle), exiting now...')
-                for _ in range(10):
-                    play_alert_sound(dm)
-                    time.sleep(0.5)
-                sys.exit(10)
+            # # Anti-cheat detected outside of battle — exit immediately
+            # if anti_cheat_detected and not (battle_entered or is_in_battle(dm)):
+            #     print('Anti-cheat detected (not in battle), exiting now...')
+            #     for _ in range(10):
+            #         play_alert_sound(dm)
+            #         time.sleep(0.5)
+            #     sys.exit(10)
 
             loop_counter += 1
             if loop_counter % 50 == 0:
