@@ -34,7 +34,7 @@ from Battle.Nytheris.ikan_tol.combat import (
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
 MONSTER_IMAGES = '|'.join([rf'fish\fish{i}.bmp' for i in range(1, 21)])
-DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 18)])
+DRAKE_IMAGES = '|'.join([rf'Character\nytheris\nytheris{i}.bmp' for i in range(1, 12)])
 
 # ---------------------------------------------------------------------------
 # Pause state  (shared via closure / global)
@@ -74,20 +74,15 @@ def check_food(dm):
     if not hasattr(check_food, "eat_count"):
         check_food.eat_count = 0
 
-    (_, x_food, y_food) = dm.FindPic(52, 649, 246, 684, 'food.bmp', '050505', 0.8, 0)
-    if x_food > 0:
-        # Satiety is sufficient, reset the eat counter
-        check_food.eat_count = 0
-        return False
+    if (check_food.eat_count % 2 == 0):
+        dm.KeyDown(18)
+        dm.KeyPress(50)
+        dm.KeyUp(18)
+        dm.Delay(100)
 
     (_, x_bread, y_bread) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
     if x_bread > 0:
         print('Replenishing satiety')
-        if (check_food.eat_count % 2 == 0):
-            dm.KeyDown(18)
-            dm.KeyPress(50)
-            dm.KeyUp(18)
-            dm.Delay(100)
         
         check_food.eat_count += 1
         print('Replenished satiety 500 times, pausing script... ' + str(check_food.eat_count) + '/500')
