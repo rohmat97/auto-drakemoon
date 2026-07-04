@@ -74,19 +74,19 @@ def check_food(dm):
     if not hasattr(check_food, "eat_count"):
         check_food.eat_count = 0
 
-    if (check_food.eat_count % 2 == 0):
-        dm.KeyDown(18)
-        dm.KeyPress(50)
-        dm.KeyUp(18)
-        dm.Delay(100)
 
     (_, x_bread, y_bread) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
     if x_bread > 0:
         print('Replenishing satiety')
         
         check_food.eat_count += 1
-        print('Replenished satiety 500 times, pausing script... ' + str(check_food.eat_count) + '/500')
-        if check_food.eat_count >= 800:
+        # if (check_food.eat_count % 2 == 0):
+        dm.KeyDown(18)
+        dm.KeyPress(50)
+        dm.KeyUp(18)
+        dm.Delay(100)
+        print('Replenished satiety 500 times, pausing script... ' + str(check_food.eat_count) + '/450')
+        if check_food.eat_count >= 450:
             relogin(dm)
             check_food.eat_count = 0
             paused = True

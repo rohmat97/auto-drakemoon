@@ -10,58 +10,28 @@ DM_REG_CODE = 'sqDvF'
 
 # Battle regions and configurations
 FORMATION_REGIONS = {
-    'East': [(954, 154, 988, 242), (954, 154, 988, 242)],
+    'East': [(949, 140, 994, 257), (985, 437, 1002, 463)],
     'South': [(940, 461, 998, 497), (23, 494, 66, 558)],
     'West': [(13, 105, 33, 165), (14, 560, 48, 623)],
-    'North': [(935, 140, 1004, 248), (31, 163, 117, 280)],
-    "NorthWest": [(379, 269, 663, 458), (379, 269, 663, 458)],
-    # "NorthEast": [(361, 269, 645, 458), (361, 269, 645, 458)],
-    "SouthEast": [(880, 280, 1005, 470), (980, 430, 1005, 470)],
-    # "SouthWest": [(19, 430, 44, 470), (19, 430, 44, 470)]
+    'North': [(935, 100, 1004, 238), (31, 153, 117, 270)],
+    'WestSouth': [(0,600,50,674), (407,642,455,670)],
+    # 'NorthEast': [(803,68,864,111), (803,68,864,111)]
 }
 
 MONSTER_DIRECTION_REGIONS = {
-    'East': (145, 732, 165, 738),
-    'South': (115, 761, 135, 767),
-    'West': (85, 727, 105, 733),
-    'North': (115, 702, 135, 708),
-    "NorthWest": (95, 712, 115, 718),
-    # "NorthEast": (135, 724, 155, 727),
-    "SouthEast": (135, 742, 155, 748),
-    # "SouthWest": (95, 754, 115, 757),
+    'East': (172, 713, 189, 722),
+    'South': (117, 730, 136, 739),
+    'West': (76, 714, 83, 728),
+    'North': (121, 689, 136, 704),
+    "WestSouth":(94,737,113,752),
+    "NorthEast":(153,698,171,715)
 }
 
 MONSTER_CHECKS = {
-    'East': ['South', 'West', 'North',],
-    'South': ['East', 'West', 'North',],
-    'West': ['East', 'South', 'North',],
-    'North': ['East', 'South', 'West',],
-    "NorthWest": ["SouthEast"],
-    # "NorthEast": ["SouthWest",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    "SouthEast": ["NorthWest"],
-    # "SouthWest": ["NorthEast",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "NorthEastSouthWest": ["NorthWest", "SouthEast",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "NorthWestSouthEast": ["NorthEast", "SouthWest",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "EastSouthWest": ["NorthWest", "SouthEast",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "EastNorthWest": ["NorthEast", "SouthWest",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "SouthEastWest": ["NorthWest", "SouthWest",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "SouthWestWest": ["NorthEast", "SouthEast",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "NorthEastWest": ["NorthWest", "SouthEast",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "NorthWestWest": ["NorthEast", "SouthWest",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "NorthEastSouth": ["NorthWest", "SouthEast",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "NorthWestSouth": ["NorthEast", "SouthWest",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "EastNorth": ["NorthWest", "SouthEast",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "EastSouth": ["NorthWest", "SouthEast",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "WestNorth": ["NorthEast", "SouthWest",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "WestSouth": ["NorthEast", "SouthWest",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "NorthEastSouthWestNorth": ["NorthWest", "SouthEast",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "NorthWestSouthEastNorth": ["NorthEast", "SouthWest",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "EastSouthWestNorth": ["NorthWest", "SouthEast",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "EastNorthWestNorth": ["NorthEast", "SouthWest",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "SouthEastWestNorth": ["NorthWest", "SouthWest",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "SouthWestWestNorth": ["NorthEast", "SouthEast",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "NorthEastWestNorth": ["NorthWest", "SouthEast",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    # "NorthWestWestNorth": ["NorthEast", "SouthWest",'East', 'South', 'West', 'North', 'NorthWest', 'SouthEast'],
-    
+    'East': ['South', 'West', 'North'],
+    'South': ['East', 'West', 'North'],
+    'West': ['East', 'South', 'North'],
+    'North': ['East', 'South', 'West'],
+    'WestSouth': ['NorthEast'],
+    'NorthEast': ['WestSouth'],
 }
-

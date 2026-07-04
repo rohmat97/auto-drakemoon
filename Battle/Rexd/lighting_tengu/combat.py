@@ -356,6 +356,38 @@ def strategy_north_west(dm):
     execute_skill_loop(dm)
     dm.Delay(50)
 
+def strategy_WestSouth_NorthEast(dm):
+    dm.MoveTo(1024, 0)
+    time.sleep(0.1)
+    dm.MoveTo(780, 250)
+    dm.Delay(50)
+    dm.KeyPress(81)
+    dm.Delay(50)
+    dm.KeyPress(87)
+    dm.Delay(50)
+    dm.MoveTo(980, 50)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+    
+def strategy_NorthEast_WestSouth(dm):
+    dm.MoveTo(0, 800)
+    time.sleep(0.25)
+    dm.MoveTo(372, 302)
+    dm.Delay(50)
+    dm.KeyPress(81)
+    dm.Delay(50)
+    dm.KeyPress(87)
+    dm.Delay(50)
+    dm.MoveTo(150, 625)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+
 STRATEGIES = {
     ('East', 'South'): strategy_east_south,
     ('East', 'West'): strategy_east_west,
@@ -369,6 +401,8 @@ STRATEGIES = {
     ('North', 'East'): strategy_north_east,
     ('North', 'South'): strategy_north_south,
     ('North', 'West'): strategy_north_west,
+    ('WestSouth', 'NorthEast'): strategy_WestSouth_NorthEast,
+    ('NorthEast', 'WestSouth'): strategy_NorthEast_WestSouth,
 }
 
 def execute_battle_strategy(dm, direction, monster_dir):

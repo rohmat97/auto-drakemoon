@@ -90,7 +90,7 @@ def check_food(dm):
             relogin(dm)
             check_food.eat_count = 0
             paused = True
-            print('All commands paused, press delete to resume...')
+            print('All commands paused, press page down to resume...')
             dm.UnBindWindow()
             return True
 
@@ -99,7 +99,7 @@ def check_food(dm):
         print('Satiety depleted, script paused')
         check_food.eat_count = 0
         paused = True
-        print('All commands paused, press delete to resume...')
+        print('All commands paused, press page down to resume...')
         dm.UnBindWindow()
         return True
     return False
@@ -237,7 +237,7 @@ def find_and_engage_monster(dm):
     start_time = time.time()
     attempt = 1
 
-    while time.time() - start_time < 1.5:
+    while time.time() - start_time < 2:
         if check_anti_cheat(dm):
             print('Anti-cheat (horse stamp) detected, will exit after current battle finishes')
             anti_cheat_detected = True
@@ -279,19 +279,17 @@ def handle_battle(dm):
                 dm.KeyPress(27)
                 dm.Delay(30)
             
-            # Wait for battle screen to actually end (i.e. is_in_battle returns False)
+            # Wait/Press Esc until battle screen actually ends
             print('Waiting for battle screen to close...')
-            start_wait = time.time()
-            battle_closed = False
-            while time.time() - start_wait < 5.0:  # Timeout after 5 seconds
-                if not is_in_battle(dm):
-                    battle_closed = True
-                    break
-            if battle_closed:
-                print('Battle screen ended')
-            else:
-                print('Warning: Battle screen did not close within timeout')
+            while is_in_battle(dm):
+                print('Still in battle field, pressing Esc to exit...')
+                for _ in range(4):
+                    dm.KeyPress(27)
+                    dm.Delay(20)
+                dm.Delay(300)
+                
             
+            print('Battle screen ended')
             check_revive(dm, is_paused)
             check_dead_mercenary(dm)
             break
@@ -299,6 +297,9 @@ def handle_battle(dm):
 
         if not action_executed:
             for direction, regions in FORMATION_REGIONS.items():
+                if action_executed:
+                    break
+                    return
                 if check_formation(dm, regions[0], regions[1]):
                     print(f'Formation position detected: {direction}')
                     time.sleep(0.1)
@@ -308,7 +309,7 @@ def handle_battle(dm):
                         if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
                             print(f'Executing strategy → Formation: {direction} | Monster: {monster_dir}')
                             execute_battle_strategy(dm, direction, monster_dir)
-                            time.sleep(12)
+                            time.sleep(15)
                             action_executed = True
                             break
 
@@ -364,23 +365,23 @@ def run_main_script():
     paused = False
     last_toggle_time = 0
 
-    def on_delete_press(event=None):
+    def on_page_down_press(event=None):
         global paused
         nonlocal last_toggle_time
         current_time = time.time()
         if current_time - last_toggle_time < 0.3:
             return
-        if event.name == 'delete':
+        if event.name == 'page down':
             last_toggle_time = current_time
             paused = not paused
             if paused:
-                print('All commands paused, press delete to resume...')
+                print('All commands paused, press page down to resume...')
                 dm.UnBindWindow()
             else:
                 print('All commands resumed...')
                 bind_game_window(dm, hwnd)
 
-    keyboard.on_press_key('delete', on_delete_press)
+    keyboard.on_press_key('page down', on_page_down_press)
 
     # Disable automatic GC to avoid stutters during time-sensitive key presses
     gc.disable()
