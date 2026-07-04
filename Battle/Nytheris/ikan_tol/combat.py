@@ -55,7 +55,6 @@ def execute_skill_loop(dm):
         dm.Delay(50)
         dm.KeyPress(69)
         dm.Delay(50)
-
 # Battle Strategies mapping (direction, monster_dir) -> action function
 
 def strategy_east_south(dm):
