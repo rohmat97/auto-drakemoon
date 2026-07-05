@@ -276,27 +276,19 @@ def handle_battle(dm):
             continue
 
         if action_executed:
-            print('Pressing Esc 4 times to exit')
-            for _ in range(4):
-                dm.KeyPress(27)
-                dm.Delay(30)
-            
             # Wait/Press Esc until battle screen actually ends
             print('Waiting for battle screen to close...')
             while is_in_battle(dm):
                 print('Still in battle field, pressing Esc to exit...')
-                for _ in range(4):
+                for _ in range(2):
                     dm.KeyPress(27)
                     dm.Delay(20)
-                dm.Delay(300)
-                
+                time.sleep(2)
             
             print('Battle screen ended')
             check_revive(dm, is_paused)
             check_dead_mercenary(dm)
             break
-           
-
         if not action_executed:
             for direction, regions in FORMATION_REGIONS.items():
                 if action_executed:
