@@ -5,8 +5,8 @@ AUTHORIZED_HARDWARE_ID = '3528f4a89e829d46405972781ac4863f3b2916bb9f03e84a5a6b7a
 
 # Game configurations
 GAME_TITLE = 'Gersang'
-DM_REG_KEY = 'hkaiscript9f39c509f3dffb21a432409f0d422e1a8dcc35'
-DM_REG_CODE = 'p66vL'
+DM_REG_KEY = 'hkaiscript44c3dffb21a432409f0d422e1a8dcc35'
+DM_REG_CODE = 'sqDvF'
 
 # Battle regions and configurations
 FORMATION_REGIONS = {

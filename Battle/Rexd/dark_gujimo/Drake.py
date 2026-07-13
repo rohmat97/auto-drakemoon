@@ -25,7 +25,7 @@ from config import (
     FORMATION_REGIONS, MONSTER_DIRECTION_REGIONS, MONSTER_CHECKS,
 )
 from window_manager import move_game_window, bind_game_window
-from Battle.Drakemoon.milang.combat import (
+from Battle.Rexd.dark_gujimo.combat import (
     check_revive, has_non_black_in_region, check_formation,
     execute_battle_strategy,
 )
@@ -33,8 +33,11 @@ from Battle.Drakemoon.milang.combat import (
 # ---------------------------------------------------------------------------
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
-MONSTER_IMAGES = '|'.join([rf'milang\milang{i}.bmp' for i in range(1,23)])
-DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 18)])
+MONSTER_IMAGES = '|'.join(
+    [rf'dark_gujimo\elder{i}.bmp' for i in range(1, 12)] +
+    [rf'dark_gujimo\goju{i}.bmp' for i in range(1, 12)]
+)
+DRAKE_IMAGES = '|'.join([rf'Character\nytheris\nytheris{i}.bmp' for i in range(1, 12)])
 
 # ---------------------------------------------------------------------------
 # Pause state  (shared via closure / global)
@@ -52,47 +55,44 @@ def is_paused():
 # ---------------------------------------------------------------------------
 # Overworld helpers
 # ---------------------------------------------------------------------------
+def relogin(dm):
+    """Press Esc to open System Menu, then click 'Char Select'."""
+    print('Relogin: Opening System Menu...')
+    dm.KeyPress(27)  # Esc to open System Menu
+    dm.Delay(500)
+    dm.MoveTo(509, 290)
+    dm.Delay(500)
+    dm.LeftClick()
+    dm.Delay(500)
+    dm.KeyPress(13)
+    dm.Delay(3000)
+    dm.KeyPress(13)
+    dm.Delay(500)
+
+
 def check_food(dm):
     """Check hunger level and consume food if needed.
     Returns True if script should pause (food exhausted)."""
     global paused
     if not hasattr(check_food, "eat_count"):
         check_food.eat_count = 0
-
-    (_, x_food, y_food) = dm.FindPic(52, 649, 246, 684, 'food.bmp', '050505', 0.8, 0)
-    (_, x_bread, y_bread) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
-
-    if x_food > 0:
-        # Satiety is sufficient, reset the eat counter
-        check_food.eat_count = 0
-    elif x_bread > 0:
-        print('Replenishing satiety')
-        if (check_food.eat_count % 2 == 0):
-            dm.KeyDown(18)
-            dm.KeyPress(50)
-            dm.KeyUp(18)
-            dm.Delay(100)
         
-        check_food.eat_count += 1
+    check_food.eat_count += 1
+    if (check_food.eat_count % 2 == 0):
+        dm.KeyDown(18)
+        dm.KeyPress(50)
+        dm.KeyUp(18)
+        dm.Delay(100)
+
+    (_, x_bread, y_bread) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
+    if x_bread > 0:
+        print('Replenishing satiety')
         print('Replenished satiety 500 times, pausing script... ' + str(check_food.eat_count) + '/500')
         if check_food.eat_count >= 800:
-            def logout(dm):
-                print('Logout: Opening System Menu...')
-                dm.KeyPress(27)  # Esc to open System Menu
-                dm.Delay(500)
-                dm.MoveTo(509, 290)
-                dm.Delay(500)
-                dm.LeftClick()
-                dm.Delay(500)
-                dm.KeyPress(13)
-                dm.Delay(3000)
-                dm.KeyPress(13)
-                dm.Delay(500)
-            
-            logout(dm)
+            relogin(dm)
             check_food.eat_count = 0
             paused = True
-            print('All commands paused, press page up to resume...')
+            print('All commands paused, press delete to resume...')
             dm.UnBindWindow()
             return True
 
@@ -101,7 +101,7 @@ def check_food(dm):
         print('Satiety depleted, script paused')
         check_food.eat_count = 0
         paused = True
-        print('All commands paused, press page up to resume...')
+        print('All commands paused, press delete to resume...')
         dm.UnBindWindow()
         return True
     return False
@@ -172,18 +172,6 @@ def play_alert_sound(dm):
         pass
 
 
-def check_community_popup(dm):
-    """Check for the Community popup and press ESC once to dismiss it.
-    Returns True if the popup was detected and dismissed."""
-    (_, x, _) = dm.FindPic(0, 0, 1024, 768, 'community.bmp', '050505', 0.8, 0)
-    if x > 0:
-        print('Community popup detected, pressing ESC to dismiss...')
-        dm.KeyPress(27)  # Press ESC once
-        dm.Delay(300)
-        return True
-    return False
-
-
 def is_in_battle(dm):
     (_, x, _) = dm.FindPic(959, 666, 1016, 747, 'battle.bmp', '050505', 0.8, 0)
     return x > 0
@@ -239,7 +227,7 @@ def find_and_engage_monster(dm):
     start_time = time.time()
     attempt = 1
 
-    while time.time() - start_time < 3.5:
+    while time.time() - start_time < 2:
         if check_anti_cheat(dm):
             print('Anti-cheat (horse stamp) detected, will exit after current battle finishes')
             anti_cheat_detected = True
@@ -258,7 +246,7 @@ def find_and_engage_monster(dm):
 
         time.sleep(0.08)
 
-    time.sleep(0.5)
+    time.sleep(0.1)
     return False
 
 # ---------------------------------------------------------------------------
@@ -284,13 +272,19 @@ def handle_battle(dm):
                     dm.KeyPress(27)
                     dm.Delay(20)
                 time.sleep(2)
+                
             
             print('Battle screen ended')
             check_revive(dm, is_paused)
             check_dead_mercenary(dm)
             break
+           
+
         if not action_executed:
             for direction, regions in FORMATION_REGIONS.items():
+                if action_executed:
+                    break
+                    return
                 if check_formation(dm, regions[0], regions[1]):
                     print(f'Formation position detected: {direction}')
                     time.sleep(0.1)
@@ -300,7 +294,7 @@ def handle_battle(dm):
                         if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
                             print(f'Executing strategy → Formation: {direction} | Monster: {monster_dir}')
                             execute_battle_strategy(dm, direction, monster_dir)
-                            time.sleep(12)
+                            time.sleep(15)
                             action_executed = True
                             break
 
@@ -327,7 +321,7 @@ def handle_battle(dm):
                 check_dead_mercenary(dm)
             break
         else:
-            time.sleep(0.5)
+            time.sleep(0.15)
 
 # ---------------------------------------------------------------------------
 # Main game loop
@@ -356,23 +350,23 @@ def run_main_script():
     paused = False
     last_toggle_time = 0
 
-    def on_page_up_press(event=None):
+    def on_delete_press(event=None):
         global paused
         nonlocal last_toggle_time
         current_time = time.time()
         if current_time - last_toggle_time < 0.3:
             return
-        if event.name == 'page up':
+        if event.name == 'delete':
             last_toggle_time = current_time
             paused = not paused
             if paused:
-                print('All commands paused, press page up to resume...')
+                print('All commands paused, press delete to resume...')
                 dm.UnBindWindow()
             else:
                 print('All commands resumed...')
                 bind_game_window(dm, hwnd)
 
-    keyboard.on_press_key('page up', on_page_up_press)
+    keyboard.on_press_key('delete', on_delete_press)
 
     # Disable automatic GC to avoid stutters during time-sensitive key presses
     gc.disable()
@@ -380,20 +374,7 @@ def run_main_script():
     # Perform initial collection
     gc.collect()
 
-    def relogin(dm):
-        """Press Esc to open System Menu, then click 'Char Select'."""
-        print('Relogin: Opening System Menu...')
-        dm.KeyPress(27)  # Esc to open System Menu
-        dm.Delay(500)
-        dm.MoveTo(509, 290)
-        dm.Delay(500)
-        dm.LeftClick()
-        dm.Delay(500)
-        dm.KeyPress(13)
-        dm.Delay(3000)
-        dm.KeyPress(13)
-        dm.Delay(500)
-    
+
     try:
         loop_counter = 0
         battle_counter = 0
@@ -407,14 +388,6 @@ def run_main_script():
                 time.sleep(0.5)
                 continue
 
-            # Check for Community popup and dismiss it (every 3 seconds)
-            current_time = time.time()
-            if not hasattr(run_main_script, "last_community_check"):
-                run_main_script.last_community_check = 0
-            if current_time - run_main_script.last_community_check > 3.0:
-                run_main_script.last_community_check = current_time
-                if check_community_popup(dm):
-                    continue
 
             battle_entered = find_and_engage_monster(dm)
             if battle_entered or is_in_battle(dm):

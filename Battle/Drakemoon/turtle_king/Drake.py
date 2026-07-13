@@ -25,7 +25,7 @@ from config import (
     FORMATION_REGIONS, MONSTER_DIRECTION_REGIONS, MONSTER_CHECKS,
 )
 from window_manager import move_game_window, bind_game_window
-from Battle.Drakemoon.milang.combat import (
+from Battle.Drakemoon.turtle_king.combat import (
     check_revive, has_non_black_in_region, check_formation,
     execute_battle_strategy,
 )
@@ -33,8 +33,8 @@ from Battle.Drakemoon.milang.combat import (
 # ---------------------------------------------------------------------------
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
-MONSTER_IMAGES = '|'.join([rf'milang\milang{i}.bmp' for i in range(1,23)])
-DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 18)])
+MONSTER_IMAGES = '|'.join([rf'turtle_king\turtle{i}.bmp' for i in range(1, 26)])
+DRAKE_IMAGES = '|'.join([rf'drake\drake{i}.bmp' for i in range(1, 17)])
 
 # ---------------------------------------------------------------------------
 # Pause state  (shared via closure / global)
@@ -92,7 +92,7 @@ def check_food(dm):
             logout(dm)
             check_food.eat_count = 0
             paused = True
-            print('All commands paused, press page up to resume...')
+            print('All commands paused, press page down to resume...')
             dm.UnBindWindow()
             return True
 
@@ -101,7 +101,7 @@ def check_food(dm):
         print('Satiety depleted, script paused')
         check_food.eat_count = 0
         paused = True
-        print('All commands paused, press page up to resume...')
+        print('All commands paused, press page down to resume...')
         dm.UnBindWindow()
         return True
     return False
@@ -170,18 +170,6 @@ def play_alert_sound(dm):
             winsound.PlaySound(sound_path, winsound.SND_FILENAME)
     except Exception:
         pass
-
-
-def check_community_popup(dm):
-    """Check for the Community popup and press ESC once to dismiss it.
-    Returns True if the popup was detected and dismissed."""
-    (_, x, _) = dm.FindPic(0, 0, 1024, 768, 'community.bmp', '050505', 0.8, 0)
-    if x > 0:
-        print('Community popup detected, pressing ESC to dismiss...')
-        dm.KeyPress(27)  # Press ESC once
-        dm.Delay(300)
-        return True
-    return False
 
 
 def is_in_battle(dm):
@@ -406,15 +394,6 @@ def run_main_script():
                 gc.collect()  # Collect when paused
                 time.sleep(0.5)
                 continue
-
-            # Check for Community popup and dismiss it (every 3 seconds)
-            current_time = time.time()
-            if not hasattr(run_main_script, "last_community_check"):
-                run_main_script.last_community_check = 0
-            if current_time - run_main_script.last_community_check > 3.0:
-                run_main_script.last_community_check = current_time
-                if check_community_popup(dm):
-                    continue
 
             battle_entered = find_and_engage_monster(dm)
             if battle_entered or is_in_battle(dm):

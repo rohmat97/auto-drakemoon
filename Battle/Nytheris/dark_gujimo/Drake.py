@@ -25,7 +25,7 @@ from config import (
     FORMATION_REGIONS, MONSTER_DIRECTION_REGIONS, MONSTER_CHECKS,
 )
 from window_manager import move_game_window, bind_game_window
-from Battle.Drakemoon.dark_gujimo.combat import (
+from Battle.Nytheris.dark_gujimo.combat import (
     check_revive, has_non_black_in_region, check_formation,
     execute_battle_strategy,
 )

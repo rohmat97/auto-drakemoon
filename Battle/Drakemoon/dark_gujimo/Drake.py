@@ -65,7 +65,7 @@ def relogin(dm):
     dm.LeftClick()
     dm.Delay(500)
     dm.KeyPress(13)
-    dm.Delay(3000)
+    dm.Delay(5000)
     dm.KeyPress(13)
     dm.Delay(500)
 
@@ -92,7 +92,7 @@ def check_food(dm):
             relogin(dm)
             check_food.eat_count = 0
             paused = True
-            print('All commands paused, press page up to resume...')
+            print('All commands paused, press delete to resume...')
             dm.UnBindWindow()
             return True
 
@@ -101,7 +101,7 @@ def check_food(dm):
         print('Satiety depleted, script paused')
         check_food.eat_count = 0
         paused = True
-        print('All commands paused, press page up to resume...')
+        print('All commands paused, press delete to resume...')
         dm.UnBindWindow()
         return True
     return False
@@ -170,18 +170,6 @@ def play_alert_sound(dm):
             winsound.PlaySound(sound_path, winsound.SND_FILENAME)
     except Exception:
         pass
-
-
-def check_community_popup(dm):
-    """Check for the Community popup and press ESC once to dismiss it.
-    Returns True if the popup was detected and dismissed."""
-    (_, x, _) = dm.FindPic(0, 0, 1024, 768, 'community.bmp', '050505', 0.8, 0)
-    if x > 0:
-        print('Community popup detected, pressing ESC to dismiss...')
-        dm.KeyPress(27)  # Press ESC once
-        dm.Delay(300)
-        return True
-    return False
 
 
 def is_in_battle(dm):
@@ -284,11 +272,14 @@ def handle_battle(dm):
                     dm.KeyPress(27)
                     dm.Delay(20)
                 time.sleep(2)
+                
             
             print('Battle screen ended')
             check_revive(dm, is_paused)
             check_dead_mercenary(dm)
             break
+           
+
         if not action_executed:
             for direction, regions in FORMATION_REGIONS.items():
                 if action_executed:
@@ -359,23 +350,23 @@ def run_main_script():
     paused = False
     last_toggle_time = 0
 
-    def on_page_up_press(event=None):
+    def on_delete_press(event=None):
         global paused
         nonlocal last_toggle_time
         current_time = time.time()
         if current_time - last_toggle_time < 0.3:
             return
-        if event.name == 'page up':
+        if event.name == 'delete':
             last_toggle_time = current_time
             paused = not paused
             if paused:
-                print('All commands paused, press page up to resume...')
+                print('All commands paused, press delete to resume...')
                 dm.UnBindWindow()
             else:
                 print('All commands resumed...')
                 bind_game_window(dm, hwnd)
 
-    keyboard.on_press_key('page up', on_page_up_press)
+    keyboard.on_press_key('delete', on_delete_press)
 
     # Disable automatic GC to avoid stutters during time-sensitive key presses
     gc.disable()
@@ -397,14 +388,6 @@ def run_main_script():
                 time.sleep(0.5)
                 continue
 
-            # Check for Community popup and dismiss it (every 3 seconds)
-            current_time = time.time()
-            if not hasattr(run_main_script, "last_community_check"):
-                run_main_script.last_community_check = 0
-            if current_time - run_main_script.last_community_check > 3.0:
-                run_main_script.last_community_check = current_time
-                if check_community_popup(dm):
-                    continue
 
             battle_entered = find_and_engage_monster(dm)
             if battle_entered or is_in_battle(dm):
