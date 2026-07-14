@@ -1,7 +1,8 @@
-# Drake.py — Main entrypoint and orchestrator (Dark Gujimo Elder)
+# Drake.py — Main entrypoint and orchestrator (Fire Gwi)
 
-from Battle.Drakemoon.dark_gujimo.combat2 import execute_battle_strategy2
-from Battle.Drakemoon.dark_gujimo.combat3 import execute_battle_strategy3
+from Battle.Drakemoon.dark_gujimo.combat import initiation_battle
+from Battle.Drakemoon.fire_gwi.combat2 import execute_battle_strategy2
+from Battle.Drakemoon.fire_gwi.combat3 import execute_battle_strategy3
 from os import system
 import os
 import sys
@@ -27,17 +28,16 @@ from config import (
     FORMATION_REGIONS, MONSTER_DIRECTION_REGIONS, MONSTER_CHECKS,
 )
 from window_manager import move_game_window, bind_game_window
-from Battle.Drakemoon.dark_gujimo.combat import (
+from Battle.Drakemoon.fire_gwi.combat import (
     check_revive, has_non_black_in_region, check_formation,
-    execute_battle_strategy,
+    execute_battle_strategy, initial_call,
 )
 
 # ---------------------------------------------------------------------------
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
 MONSTER_IMAGES = '|'.join(
-    [rf'dark_gujimo\elder{i}.bmp' for i in range(1, 12)] +
-    [rf'dark_gujimo\goju{i}.bmp' for i in range(1, 12)]
+    [rf'firegwi{i}.bmp' for i in range(1, 31)]
 )
 DRAKE_IMAGES = '|'.join([rf'Character\drakemoon\drake{i}.bmp' for i in range(1, 12)])
 
@@ -69,7 +69,7 @@ def relogin(dm):
     dm.KeyPress(13)
     dm.Delay(5000)
     dm.KeyPress(13)
-    dm.Delay(500)
+    dm.Delay(2500)
 
 
 def check_food(dm):
@@ -290,26 +290,49 @@ def handle_battle(dm):
                 if check_formation(dm, regions[0], regions[1]):
                     print(f'Formation position detected: {direction}')
                     time.sleep(0.1)
+                    dm.MoveTo(640, 425)
+                    dm.Delay(25)
+                    key_code = None
+                    if direction == 'West':
+                        key_code = 39  # Arrow Right
+                    elif direction == 'East':
+                        key_code = 37  # Arrow Left
+                    elif direction == 'North':
+                        key_code = 40  # Arrow Down
+                    elif direction == 'South':
+                        key_code = 38  # Arrow Up
+
+                    if key_code is not None:
+                        dm.KeyDown(key_code)
+                        dm.Delay(400)
+                        dm.KeyUp(key_code)
+                    dm.Delay(25)
+                    initial_call(dm)
+                    dm.Delay(25)
+                    initiation_battle(dm)
+                    dm.Delay(25)
+                    dm.KeyPress(49)
+                    dm.Delay(25)
+                    dm.KeyPress(49)
+                    dm.Delay(25)
 
                     found_monsters = []
                     duration = 0
                     print(f'Scanning {direction} formation up to 30 times for monsters...')
-                    for scan_attempt in range(30):
+                    for scan_attempt in range(10):
                         for monster_dir in MONSTER_CHECKS[direction]:
                             if monster_dir not in found_monsters:
                                 (x1, y1, x2, y2) = MONSTER_DIRECTION_REGIONS[monster_dir]
                                 if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
                                     found_monsters.append(monster_dir)
-                                    
                         if len(found_monsters) >= 2:
-                            if(len(found_monsters) == 3): duration = 12
-                            if(len(found_monsters) == 2): duration = 7
-                            else: duration = 12
-                            # Break early if we found at least 2 monsters
+                            duration = 5 # Break early if we found at least 2 monsters
                             break
-                            
-                        time.sleep(0.5)
-                    
+                        else: 
+                            duration = 12
+                           
+                        time.sleep(0.25)
+
                     if found_monsters:
                         print(f'Total monsters found: {len(found_monsters)} -> {found_monsters}')
                         for i, monster_dir in enumerate(found_monsters):
@@ -319,10 +342,18 @@ def handle_battle(dm):
                             if(i == 2): execute_battle_strategy3(dm, direction, monster_dir)
                             
                             if i < len(found_monsters) - 1:
-                                dm.KeyPress(49)
-                                dm.Delay(100)
-                                dm.KeyPress(49)
-                                dm.Delay(100)
+                                if(i==0):
+                                    time.sleep(duration-3)
+                                    dm.KeyPress(49)
+                                    dm.Delay(100)
+                                    dm.KeyPress(49)
+                                    dm.Delay(100)
+                                else:
+                                    time.sleep(duration)
+                                    dm.KeyPress(49)
+                                    dm.Delay(100)
+                                    dm.KeyPress(49)
+                                    dm.Delay(100)
                             else:
                                 time.sleep(duration)
                         
@@ -399,6 +430,31 @@ def run_main_script():
 
     keyboard.on_press_key('delete', on_delete_press)
 
+    def on_pageup_press(event=None):
+        nonlocal last_toggle_time
+        current_time = time.time()
+        if current_time - last_toggle_time < 0.3:
+            return
+        if event.name == 'page up':
+            last_toggle_time = current_time
+            print('Page Up pressed: restarting run.bat and closing current terminal...')
+            try:
+                dm.UnBindWindow()
+            except Exception:
+                pass
+            try:
+                bat_path = os.path.join(_SCRIPT_DIR, 'run.bat')
+                os.startfile(bat_path)
+            except Exception as e:
+                print(f"Error starting run.bat: {e}")
+            try:
+                os.kill(os.getppid(), 9)
+            except Exception as e:
+                print(f"Error killing parent terminal: {e}")
+            sys.exit(0)
+
+    keyboard.on_press_key('page up', on_pageup_press)
+
     # Disable automatic GC to avoid stutters during time-sensitive key presses
     gc.disable()
     
@@ -439,9 +495,9 @@ def run_main_script():
                 check_food(dm)
 
                 battle_counter += 1
-                print(f'Battles completed: {battle_counter}/15')
-                if battle_counter >= 15:
-                    print('Reached 15 battles. Restarting application...')
+                print(f'Battles completed: {battle_counter}/25')
+                if battle_counter >= 25:
+                    print('Reached 25 battles. Restarting application...')
                     time.sleep(0.5)
                     if getattr(sys, 'frozen', None):
                         import subprocess
@@ -455,7 +511,7 @@ def run_main_script():
                         print('Cache cleared, continuing...')
                         time.sleep(5)
                         relogin(dm)
-                        time.sleep(15)
+                        time.sleep(5)
 
             loop_counter += 1
             if loop_counter % 50 == 0:
