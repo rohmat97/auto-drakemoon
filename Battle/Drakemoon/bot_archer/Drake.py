@@ -28,7 +28,7 @@ from config import (
     FORMATION_REGIONS, MONSTER_DIRECTION_REGIONS, MONSTER_CHECKS,
 )
 from window_manager import move_game_window, bind_game_window
-from Battle.Drakemoon.fire_gwi.combat import (
+from Battle.Drakemoon.bot_archer.combat import (
     check_revive, has_non_black_in_region, check_formation,
     execute_battle_strategy, initial_call,
 )
@@ -37,9 +37,9 @@ from Battle.Drakemoon.fire_gwi.combat import (
 # Image pattern strings (kept here to avoid bloating config with long literals)
 # ---------------------------------------------------------------------------
 MONSTER_IMAGES = '|'.join(
-    [rf'firegwi{i}.bmp' for i in range(1, 31)]
+    [rf'stone_lion/stone_lion{i}.bmp' for i in range(1, 26)]
 )
-DRAKE_IMAGES = '|'.join([rf'Character\drakemoon\drake{i}.bmp' for i in range(1, 12)])
+DRAKE_IMAGES = '|'.join([rf'Character\nytheris\nytheris{i}.bmp' for i in range(1, 12)])
 
 # ---------------------------------------------------------------------------
 # Pause state  (shared via closure / global)
@@ -80,7 +80,13 @@ def check_food(dm):
         check_food.eat_count = 0
         
     check_food.eat_count += 1
-    if (check_food.eat_count % 2 == 0):
+    # press alt+1 every finish battle
+    dm.KeyDown(18)
+    dm.KeyPress(49)
+    dm.KeyUp(18)
+    dm.Delay(100)
+    # press alt+2 every 4 times battle
+    if (check_food.eat_count % 4 == 0):
         dm.KeyDown(18)
         dm.KeyPress(50)
         dm.KeyUp(18)
@@ -287,6 +293,7 @@ def handle_battle(dm):
             for direction, regions in FORMATION_REGIONS.items():
                 if action_executed:
                     break
+                
                 if check_formation(dm, regions[0], regions[1]):
                     print(f'Formation position detected: {direction}')
                     time.sleep(0.1)
@@ -308,75 +315,8 @@ def handle_battle(dm):
                         dm.KeyUp(key_code)
                     dm.Delay(25)
                     initial_call(dm)
-                    dm.Delay(25)
-                    initiation_battle(dm)
-                    dm.Delay(25)
-                    dm.KeyPress(49)
-                    dm.Delay(25)
-                    dm.KeyPress(49)
-                    dm.Delay(25)
-
-                    found_monsters = []
-                    duration = 0
-                    print(f'Scanning {direction} formation up to 30 times for monsters...')
-                    for scan_attempt in range(10):
-                        for monster_dir in MONSTER_CHECKS[direction]:
-                            if monster_dir not in found_monsters:
-                                (x1, y1, x2, y2) = MONSTER_DIRECTION_REGIONS[monster_dir]
-                                if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
-                                    found_monsters.append(monster_dir)
-                        if len(found_monsters) >= 2:
-                            duration = 5 # Break early if we found at least 2 monsters
-                            break
-                        else: 
-                            duration = 12
-                           
-                        time.sleep(0.25)
-
-                    if found_monsters:
-                        print(f'Total monsters found: {len(found_monsters)} -> {found_monsters}')
-                        for i, monster_dir in enumerate(found_monsters):
-                            print(f'Executing strategy [{i+1}/{len(found_monsters)}] → Formation: {direction} | Monster: {monster_dir}')
-                            if(i == 0): execute_battle_strategy(dm, direction, monster_dir)
-                            if(i == 1): execute_battle_strategy2(dm, direction, monster_dir)
-                            if(i == 2): execute_battle_strategy3(dm, direction, monster_dir)
-                            
-                            if i < len(found_monsters) - 1:
-                                print(f'Waiting {i} before next battle...')
-                                if(i==0):
-                                    dm.KeyPress(49)
-                                    dm.Delay(100)
-                                    dm.KeyPress(49)
-                                    dm.Delay(100)
-                                elif(i==1):
-                                    time.sleep(duration-3)
-                                    dm.KeyPress(49)
-                                    dm.Delay(100)
-                                    dm.KeyPress(49)
-                                    dm.Delay(100)
-                                else:
-                                    time.sleep(duration)
-                                    dm.KeyPress(49)
-                                    dm.Delay(100)
-                                    dm.KeyPress(49)
-                                    dm.Delay(100)
-                            else:
-                                time.sleep(duration)
-                        
-                        action_executed = True
-                        break
-
-            no_monster_count += 1
-            if no_monster_count >= 20:
-                print('No monsters found 20 times. Exiting battle by pressing Esc 2 times...')
-                dm.KeyPress(27)
-                dm.Delay(100)
-                dm.KeyPress(27)
-                dm.Delay(100)
-                time.sleep(2)
-                no_monster_count = 0
-            else:
-                time.sleep(0.1)
+                    # dm.Delay(25)
+                    # initiation_battle(dm)
 
         # Check if battle ended
         if not is_in_battle(dm):
@@ -492,6 +432,7 @@ def run_main_script():
 
             battle_entered = find_and_engage_monster(dm)
             if battle_entered or is_in_battle(dm):
+                print('Entering battle...')
                 handle_battle(dm)
                 gc.collect()  # Clean up COM references and memory after battle
 

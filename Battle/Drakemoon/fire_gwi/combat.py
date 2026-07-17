@@ -91,7 +91,7 @@ def strategy_east_south(dm):
 def strategy_east_west(dm):
     dm.MoveTo(9, 371)
     time.sleep(0.55)
-    dm.MoveTo(175, 358)
+    dm.MoveTo(155, 358)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -104,7 +104,7 @@ def strategy_east_north(dm):
     dm.Delay(50)
     dm.MoveTo(625, 0)
     time.sleep(0.15)
-    dm.MoveTo(775, 120)
+    dm.MoveTo(825, 90)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -116,7 +116,7 @@ def strategy_south_east(dm):
     dm.Delay(50)
     dm.MoveTo(1022, 322)
     time.sleep(0.33)
-    dm.MoveTo(550, 550)
+    dm.MoveTo(580, 600)
 
     dm.Delay(50)
     execute_skill_loop(dm)
@@ -150,7 +150,7 @@ def strategy_south_north(dm):
 def strategy_west_east(dm):
     dm.MoveTo(1022, 352)
     dm.Delay(850)
-    dm.MoveTo(225, 375)
+    dm.MoveTo(450, 375)
 
     dm.Delay(50)
     execute_skill_loop(dm)
@@ -178,7 +178,7 @@ def strategy_west_north(dm):
     dm.Delay(50)
     dm.MoveTo(250, 5)
     time.sleep(0.33)
-    dm.MoveTo(350, 350)
+    dm.MoveTo(300, 300)
 
     dm.Delay(50)
     execute_skill_loop(dm)
@@ -190,7 +190,7 @@ def strategy_north_east(dm):
     time.sleep(0.45)
     dm.MoveTo(1022, 128)
     time.sleep(0.33)
-    dm.MoveTo(500, 301)
+    dm.MoveTo(675, 301)
 
     dm.Delay(50)
     execute_skill_loop(dm)
@@ -201,7 +201,7 @@ def strategy_north_south(dm):
     dm.MoveTo(480, 762)
     time.sleep(0.60)
     dm.Delay(50)
-    dm.MoveTo(628, 400)
+    dm.MoveTo(628, 500)
 
     dm.Delay(50)
     execute_skill_loop(dm)

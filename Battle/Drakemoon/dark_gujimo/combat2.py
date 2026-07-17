@@ -2,7 +2,7 @@
 from Battle.Drakemoon.dark_gujimo.combat import initiation_battle
 
 def execute_skill_loop(dm):
-    for key in [50, 51]:
+    for key in [50, 51, 52, 53, 54]:
         dm.KeyPress(key)
         dm.Delay(50)
         dm.KeyPress(69)

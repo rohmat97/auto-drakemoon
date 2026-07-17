@@ -29,7 +29,7 @@ from config import (
 from window_manager import move_game_window, bind_game_window
 from Battle.Drakemoon.dark_gujimo.combat import (
     check_revive, has_non_black_in_region, check_formation,
-    execute_battle_strategy,
+    execute_battle_strategy, initiation_battle, initial_call,
 )
 
 # ---------------------------------------------------------------------------
@@ -288,8 +288,32 @@ def handle_battle(dm):
                 if action_executed:
                     break
                 if check_formation(dm, regions[0], regions[1]):
-                    print(f'Formation position detected: {direction}')
                     time.sleep(0.1)
+                    dm.MoveTo(640, 425)
+                    dm.Delay(25)
+                    key_code = None
+                    if direction == 'West':
+                        key_code = 39  # Arrow Right
+                    elif direction == 'East':
+                        key_code = 37  # Arrow Left
+                    elif direction == 'North':
+                        key_code = 40  # Arrow Down
+                    elif direction == 'South':
+                        key_code = 38  # Arrow Up
+
+                    if key_code is not None:
+                        dm.KeyDown(key_code)
+                        dm.Delay(400)
+                        dm.KeyUp(key_code)
+                    dm.Delay(25)
+                    initial_call(dm)
+                    dm.Delay(25)
+                    initiation_battle(dm)
+                    dm.Delay(25)
+                    dm.KeyPress(49)
+                    dm.Delay(25)
+                    dm.KeyPress(49)
+                    dm.Delay(25)
 
                     found_monsters = []
                     duration = 0
