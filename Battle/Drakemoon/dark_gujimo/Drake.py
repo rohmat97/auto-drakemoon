@@ -41,6 +41,8 @@ MONSTER_IMAGES = '|'.join(
 )
 DRAKE_IMAGES = '|'.join([rf'Character\drakemoon\drake{i}.bmp' for i in range(1, 12)])
 
+
+
 # ---------------------------------------------------------------------------
 # Pause state  (shared via closure / global)
 # ---------------------------------------------------------------------------
@@ -69,7 +71,7 @@ def relogin(dm):
     dm.KeyPress(13)
     dm.Delay(5000)
     dm.KeyPress(13)
-    dm.Delay(500)
+    dm.Delay(2500)
 
 
 def check_food(dm):
@@ -131,11 +133,11 @@ def check_dead_mercenary(dm):
         keys = [50, 51, 52, 53, 54, 55, 56, 57, 48, 189, 187]
         for key in keys:
             dm.KeyPress(key)
-            dm.Delay(100)  # Increased delay to allow inventory UI to load
+            dm.Delay(200)  # Increased delay to allow inventory UI to load
             dm.MoveTo(600,150)
-            dm.Delay(100)
+            dm.Delay(200)
             dm.RightClick()
-            dm.Delay(100)
+            dm.Delay(200)
         
         # Press 'i' again to close inventory
         dm.KeyPress(73)
@@ -230,9 +232,9 @@ def find_and_engage_monster(dm):
     attempt = 1
 
     while time.time() - start_time < 2:
-        if check_anti_cheat(dm):
-            print('Anti-cheat (horse stamp) detected, will exit after current battle finishes')
-            anti_cheat_detected = True
+        # if check_anti_cheat(dm):
+        #     print('Anti-cheat (horse stamp) detected, will exit after current battle finishes')
+        #     anti_cheat_detected = True
 
         if is_in_battle(dm):
             print('✅ Successfully entered battle screen')
@@ -288,6 +290,7 @@ def handle_battle(dm):
                 if action_executed:
                     break
                 if check_formation(dm, regions[0], regions[1]):
+                    print(f'Formation position detected: {direction}')
                     time.sleep(0.1)
                     dm.MoveTo(640, 425)
                     dm.Delay(25)
@@ -318,22 +321,20 @@ def handle_battle(dm):
                     found_monsters = []
                     duration = 0
                     print(f'Scanning {direction} formation up to 30 times for monsters...')
-                    for scan_attempt in range(30):
+                    for scan_attempt in range(10):
                         for monster_dir in MONSTER_CHECKS[direction]:
                             if monster_dir not in found_monsters:
                                 (x1, y1, x2, y2) = MONSTER_DIRECTION_REGIONS[monster_dir]
                                 if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
                                     found_monsters.append(monster_dir)
-                                    
                         if len(found_monsters) >= 2:
-                            if(len(found_monsters) == 3): duration = 12
-                            if(len(found_monsters) == 2): duration = 7
-                            else: duration = 12
-                            # Break early if we found at least 2 monsters
+                            duration = 5 # Break early if we found at least 2 monsters
                             break
-                            
-                        time.sleep(0.5)
-                    
+                        else: 
+                            duration = 12
+                           
+                        time.sleep(0.25)
+
                     if found_monsters:
                         print(f'Total monsters found: {len(found_monsters)} -> {found_monsters}')
                         for i, monster_dir in enumerate(found_monsters):
@@ -343,10 +344,24 @@ def handle_battle(dm):
                             if(i == 2): execute_battle_strategy3(dm, direction, monster_dir)
                             
                             if i < len(found_monsters) - 1:
-                                dm.KeyPress(49)
-                                dm.Delay(100)
-                                dm.KeyPress(49)
-                                dm.Delay(100)
+                                print(f'Waiting {i} before next battle...')
+                                if(i==0):
+                                    dm.KeyPress(49)
+                                    dm.Delay(100)
+                                    dm.KeyPress(49)
+                                    dm.Delay(100)
+                                elif(i==1):
+                                    time.sleep(duration-3)
+                                    dm.KeyPress(49)
+                                    dm.Delay(100)
+                                    dm.KeyPress(49)
+                                    dm.Delay(100)
+                                else:
+                                    time.sleep(duration)
+                                    dm.KeyPress(49)
+                                    dm.Delay(100)
+                                    dm.KeyPress(49)
+                                    dm.Delay(100)
                             else:
                                 time.sleep(duration)
                         
@@ -423,6 +438,31 @@ def run_main_script():
 
     keyboard.on_press_key('delete', on_delete_press)
 
+    def on_pageup_press(event=None):
+        nonlocal last_toggle_time
+        current_time = time.time()
+        if current_time - last_toggle_time < 0.3:
+            return
+        if event.name == 'page up':
+            last_toggle_time = current_time
+            print('Page Up pressed: restarting run.bat and closing current terminal...')
+            try:
+                dm.UnBindWindow()
+            except Exception:
+                pass
+            try:
+                bat_path = os.path.join(_SCRIPT_DIR, 'run.bat')
+                os.startfile(bat_path)
+            except Exception as e:
+                print(f"Error starting run.bat: {e}")
+            try:
+                os.kill(os.getppid(), 9)
+            except Exception as e:
+                print(f"Error killing parent terminal: {e}")
+            sys.exit(0)
+
+    keyboard.on_press_key('page up', on_pageup_press)
+
     # Disable automatic GC to avoid stutters during time-sensitive key presses
     gc.disable()
     
@@ -449,7 +489,7 @@ def run_main_script():
                 for _ in range(10):
                     play_alert_sound(dm)
                     time.sleep(0.5)
-                dm.UnBindWindow()
+                # dm.UnBindWindow()
                 time.sleep(2)
 
             battle_entered = find_and_engage_monster(dm)
@@ -463,9 +503,9 @@ def run_main_script():
                 check_food(dm)
 
                 battle_counter += 1
-                print(f'Battles completed: {battle_counter}/15')
-                if battle_counter >= 15:
-                    print('Reached 15 battles. Restarting application...')
+                print(f'Battles completed: {battle_counter}/50')
+                if battle_counter >= 50:
+                    print('Reached 50 battles. Restarting application...')
                     time.sleep(0.5)
                     if getattr(sys, 'frozen', None):
                         import subprocess
@@ -479,7 +519,7 @@ def run_main_script():
                         print('Cache cleared, continuing...')
                         time.sleep(5)
                         relogin(dm)
-                        time.sleep(15)
+                        time.sleep(5)
 
             loop_counter += 1
             if loop_counter % 50 == 0:

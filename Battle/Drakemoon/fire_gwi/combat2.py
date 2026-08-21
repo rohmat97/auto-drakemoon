@@ -2,7 +2,7 @@
 from Battle.Drakemoon.fire_gwi.combat import initiation_battle
 
 def execute_skill_loop(dm):
-    for key in [50, 51, 52, 53, 54]:
+    for key in [50, 51, 52, 53, 54,55]:
         dm.KeyPress(key)
         dm.Delay(50)
         dm.KeyPress(69)
@@ -16,7 +16,7 @@ def strategy_east_south(dm):
     time.sleep(0.45)
     dm.MoveTo(371, 1022)
     time.sleep(0.10)
-    dm.MoveTo(550, 640)
+    dm.MoveTo(500, 640)
 
     dm.Delay(50)
     execute_skill_loop(dm)
@@ -39,7 +39,7 @@ def strategy_east_north(dm):
     dm.Delay(50)
     dm.MoveTo(625, 0)
     time.sleep(0.15)
-    dm.MoveTo(825, 120)
+    dm.MoveTo(625, 120)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -66,7 +66,6 @@ def strategy_south_west(dm):
     dm.MoveTo(8, 449)
     time.sleep(0.33)
     dm.MoveTo(435, 525)
-
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -75,7 +74,7 @@ def strategy_south_west(dm):
 def strategy_south_north(dm):
     dm.MoveTo(487, 10)
     time.sleep(0.70)
-    dm.MoveTo(525, 350)
+    dm.MoveTo(525, 200)
 
     dm.Delay(50)
     execute_skill_loop(dm)
@@ -101,7 +100,7 @@ def strategy_west_south(dm):
     dm.Delay(50)
     dm.MoveTo(275, 1022)
     time.sleep(0.25)
-    dm.MoveTo(225, 555)
+    dm.MoveTo(350, 620)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -113,7 +112,7 @@ def strategy_west_north(dm):
     dm.Delay(50)
     dm.MoveTo(250, 5)
     time.sleep(0.33)
-    dm.MoveTo(320, 380)
+    dm.MoveTo(520, 350)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -135,7 +134,7 @@ def strategy_north_south(dm):
     dm.MoveTo(480, 762)
     time.sleep(0.60)
     dm.Delay(50)
-    dm.MoveTo(500, 575)
+    dm.MoveTo(500, 625)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -150,8 +149,7 @@ def strategy_north_west(dm):
     dm.Delay(50)
     dm.MoveTo(0, 150)
     dm.Delay(250)
-    dm.MoveTo(300, 125)
-
+    dm.MoveTo(300, 175)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)

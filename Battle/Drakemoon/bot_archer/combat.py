@@ -50,7 +50,7 @@ def check_formation(dm, region1, region2):
     return False
 
 def execute_skill_loop(dm):
-    for key in [50, 51, 52, 53, 54]:
+    for key in [50, 51, 52, 53, 54,55]:
         dm.KeyPress(key)
         dm.Delay(50)
         dm.KeyPress(69)
@@ -100,7 +100,7 @@ def strategy_east_north(dm):
     dm.Delay(50)
     dm.MoveTo(625, 0)
     time.sleep(0.15)
-    dm.MoveTo(825, 90)
+    dm.MoveTo(625, 120)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -112,7 +112,7 @@ def strategy_south_east(dm):
     dm.Delay(50)
     dm.MoveTo(1022, 322)
     time.sleep(0.33)
-    dm.MoveTo(580, 600)
+    dm.MoveTo(625, 600)
 
     dm.Delay(50)
     execute_skill_loop(dm)
@@ -126,8 +126,7 @@ def strategy_south_west(dm):
     dm.Delay(50)
     dm.MoveTo(8, 449)
     time.sleep(0.33)
-    dm.MoveTo(500, 600)
-
+    dm.MoveTo(435, 525)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)

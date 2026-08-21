@@ -76,21 +76,26 @@ def check_food(dm):
     """Check hunger level and consume food if needed.
     Returns True if script should pause (food exhausted)."""
     global paused
+    print('[Post-Battle] Checking hunger & consuming food (Alt+1, Alt+2)...')
     if not hasattr(check_food, "eat_count"):
         check_food.eat_count = 0
         
     check_food.eat_count += 1
     # press alt+1 every finish battle
     dm.KeyDown(18)
+    dm.Delay(200)
     dm.KeyPress(49)
+    dm.Delay(200)
     dm.KeyUp(18)
-    dm.Delay(100)
-    # press alt+2 every 4 times battle
-    if (check_food.eat_count % 4 == 0):
+    dm.Delay(200)
+    # press alt+2 every times battle
+    if (check_food.eat_count % 2 == 0):
         dm.KeyDown(18)
+        dm.Delay(200)
         dm.KeyPress(50)
+        dm.Delay(200)
         dm.KeyUp(18)
-        dm.Delay(100)
+    dm.Delay(200)
 
     (_, x_bread, y_bread) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
     if x_bread > 0:
@@ -100,7 +105,7 @@ def check_food(dm):
             relogin(dm)
             check_food.eat_count = 0
             paused = True
-            print('All commands paused, press delete to resume...')
+            print('All commands paused, press page down to resume...')
             dm.UnBindWindow()
             return True
 
@@ -109,7 +114,7 @@ def check_food(dm):
         print('Satiety depleted, script paused')
         check_food.eat_count = 0
         paused = True
-        print('All commands paused, press delete to resume...')
+        print('All commands paused, press page down to resume...')
         dm.UnBindWindow()
         return True
     return False
@@ -117,9 +122,10 @@ def check_food(dm):
 
 def check_dead_mercenary(dm):
     """If a dead mercenary is detected, consume half-chicken soup."""
-    (_, x, _) = dm.FindPic(0, 0, 110, 650, DRAKE_IMAGES, '050505', 0.8, 0)
+    print('[Post-Battle] Checking mercenary status...')
+    (_, x, _) = dm.FindPic(0, 0, 120, 700, DRAKE_IMAGES, '050505', 0.8, 0)
     if x > 0:
-        print('Dead mercenary detected, opening inventory to revive...')
+        print(f'Dead mercenary detected (found icon at x={x}), opening inventory to revive...')
         # Press 'i' to open inventory
         dm.KeyPress(73)
         dm.Delay(500)
@@ -138,7 +144,7 @@ def check_dead_mercenary(dm):
         for key in keys:
             dm.KeyPress(key)
             dm.Delay(200)  # Increased delay to allow inventory UI to load
-            dm.MoveTo(600,150)
+            dm.MoveTo(600, 150)
             dm.Delay(200)
             dm.RightClick()
             dm.Delay(200)
@@ -146,6 +152,8 @@ def check_dead_mercenary(dm):
         # Press 'i' again to close inventory
         dm.KeyPress(73)
         dm.Delay(500)
+    else:
+        print('[Post-Battle] All mercenaries are alive.')
 
 
 def check_anti_cheat(dm):
@@ -181,7 +189,7 @@ def play_alert_sound(dm):
 
 
 def is_in_battle(dm):
-    (_, x, _) = dm.FindPic(959, 666, 1016, 747, 'battle.bmp', '050505', 0.8, 0)
+    (_, x, _) = dm.FindPic(959, 666, 1016, 747, 'battle3.bmp', '050505', 0.8, 0)
     return x > 0
 
 
@@ -215,12 +223,12 @@ def find_and_engage_monster(dm):
         if current_time_check - last_monster_seen_time > 3.5:
             no_monster_search_count += 1
             print(f'[Active] Searching for monsters on overworld... ({no_monster_search_count}/5)')
-            # last_monster_seen_time = current_time_check
-            # if no_monster_search_count >= 5:
-            #     print('No monsters found 5 times, pressing ESC to dismiss any popups...')
-            #     dm.KeyPress(27)
-            #     dm.Delay(300)
-            #     no_monster_search_count = 0
+            last_monster_seen_time = current_time_check
+            if no_monster_search_count >= 5:
+                print('No monsters found 5 times, pressing ESC to dismiss any popups...')
+                dm.KeyPress(27)
+                dm.Delay(300)
+                no_monster_search_count = 0
         return False
 
     no_monster_search_count = 0
@@ -231,11 +239,11 @@ def find_and_engage_monster(dm):
     dm.RightClick()
     dm.Delay(300)
 
-    print('Waiting to enter battle screen... (max 3s)')
+    print('Waiting to enter battle screen... (max 4s)')
     start_time = time.time()
     attempt = 1
 
-    while time.time() - start_time < 2:
+    while time.time() - start_time < 2.0:
         # if check_anti_cheat(dm):
         #     print('Anti-cheat (horse stamp) detected, will exit after current battle finishes')
         #     anti_cheat_detected = True
@@ -244,7 +252,7 @@ def find_and_engage_monster(dm):
             print('✅ Successfully entered battle screen')
             return True
 
-        if time.time() - start_time > 0.5 and attempt == 1:
+        if time.time() - start_time > 1.2 and attempt == 1:
             print('Battle not entered, right-clicking monster again...')
             dm.MoveTo(x, y)
             dm.Delay(100)
@@ -283,8 +291,6 @@ def handle_battle(dm):
                 
             
             print('Battle screen ended')
-            check_revive(dm, is_paused)
-            check_dead_mercenary(dm)
             break
            
 
@@ -315,18 +321,13 @@ def handle_battle(dm):
                         dm.KeyUp(key_code)
                     dm.Delay(25)
                     initial_call(dm)
-                    # dm.Delay(25)
-                    # initiation_battle(dm)
+                    action_executed = True
+                    break
 
         # Check if battle ended
         if not is_in_battle(dm):
             action_executed = True
             print('Battle screen ended')
-            if check_revive(dm, is_paused):
-                print('Waiting for town to load after reviving main character...')
-                time.sleep(5)
-            else:
-                check_dead_mercenary(dm)
             break
         else:
             time.sleep(0.15)
@@ -358,48 +359,25 @@ def run_main_script():
     paused = False
     last_toggle_time = 0
 
-    def on_delete_press(event=None):
+    def on_pagedown_press(event=None):
         global paused
         nonlocal last_toggle_time
         current_time = time.time()
         if current_time - last_toggle_time < 0.3:
             return
-        if event.name == 'delete':
+        if event.name == 'page down':
             last_toggle_time = current_time
             paused = not paused
             if paused:
-                print('All commands paused, press delete to resume...')
+                print('All commands paused, press page down to resume...')
                 dm.UnBindWindow()
             else:
                 print('All commands resumed...')
                 bind_game_window(dm, hwnd)
 
-    keyboard.on_press_key('delete', on_delete_press)
+    keyboard.on_press_key('page down', on_pagedown_press)
 
-    def on_pageup_press(event=None):
-        nonlocal last_toggle_time
-        current_time = time.time()
-        if current_time - last_toggle_time < 0.3:
-            return
-        if event.name == 'page up':
-            last_toggle_time = current_time
-            print('Page Up pressed: restarting run.bat and closing current terminal...')
-            try:
-                dm.UnBindWindow()
-            except Exception:
-                pass
-            try:
-                bat_path = os.path.join(_SCRIPT_DIR, 'run.bat')
-                os.startfile(bat_path)
-            except Exception as e:
-                print(f"Error starting run.bat: {e}")
-            try:
-                os.kill(os.getppid(), 9)
-            except Exception as e:
-                print(f"Error killing parent terminal: {e}")
-            sys.exit(0)
 
-    keyboard.on_press_key('page up', on_pageup_press)
 
     # Disable automatic GC to avoid stutters during time-sensitive key presses
     gc.disable()
@@ -413,6 +391,7 @@ def run_main_script():
         battle_counter = 0
         last_refresh_time = time.time()
         while True:
+            
             if check_stamina(dm):
                 break
 
@@ -437,28 +416,52 @@ def run_main_script():
                 gc.collect()  # Clean up COM references and memory after battle
 
        
-                # Check revive and food after battle
-                check_revive(dm, is_paused)
+                # -----------------------------------------------------------------
+                # Mandatory Post-Battle Sequence:
+                # 1. Wait for overworld UI to load
+                # 2. Check main character revive
+                # 3. Check dead mercenaries
+                # 4. Check & consume food
+                # Monsters will NOT be searched or clicked until this is done.
+                # -----------------------------------------------------------------
+                print('==================================================')
+                print('[Post-Battle] Waiting 2.0s for overworld screen to load...')
+                time.sleep(2.0)
+
+                print('[Post-Battle 1/3] Checking character revive...')
+                if check_revive(dm, is_paused):
+                    print('[Post-Battle] Reviving character, waiting for town...')
+                    time.sleep(5.0)
+
+                print('[Post-Battle 2/3] Checking dead mercenary...')
+                check_dead_mercenary(dm)
+                time.sleep(0.5)
+
+                print('[Post-Battle 3/3] Checking food & replenishing satiety...')
                 check_food(dm)
+                time.sleep(0.5)
+
+                print('[Post-Battle] Finished all checks. Resuming monster hunting...')
+                print('==================================================')
 
                 battle_counter += 1
-                print(f'Battles completed: {battle_counter}/50')
-                if battle_counter >= 50:
-                    print('Reached 50 battles. Restarting application...')
-                    time.sleep(0.5)
-                    if getattr(sys, 'frozen', None):
-                        import subprocess
-                        cwd = os.path.dirname(os.path.abspath(sys.executable))
-                        subprocess.Popen([sys.executable], cwd=cwd)
-                        sys.exit(0)
-                    else:
-                        system('cls')
-                        gc.collect()
-                        battle_counter = 0
-                        print('Cache cleared, continuing...')
-                        time.sleep(5)
-                        relogin(dm)
-                        time.sleep(5)
+                # print(f'Battles completed: {battle_counter}/50')
+                # if battle_counter >= 50:
+                #     print('Reached 50 battles. Restarting application...')
+                #     time.sleep(0.5)
+                #     if getattr(sys, 'frozen', None):
+                #         import subprocess
+                #         cwd = os.path.dirname(os.path.abspath(sys.executable))
+                #         subprocess.Popen([sys.executable], cwd=cwd)
+                #         sys.exit(0)
+                #     else:
+                #         system('cls')
+                #         gc.collect()
+                #         battle_counter = 0
+                #         print('Cache cleared, continuing...')
+                #         time.sleep(5)
+                #         # relogin(dm)
+                #         # time.sleep(5)
 
             loop_counter += 1
             if loop_counter % 50 == 0:
