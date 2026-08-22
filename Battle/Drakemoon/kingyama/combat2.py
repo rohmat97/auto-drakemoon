@@ -1,53 +1,5 @@
-# combat.py
-
-from PyGameAuto import Dm
-from PyGameAuto import Dm
-import time
-
-def check_revive(dm, is_paused_func):
-    if is_paused_func():
-        return False
-    (r, x, y) = dm.FindPic(0, 0, 1024, 768, 'revivedrake.bmp', '202020', 0.7, 0)
-    if x > 0:
-        print('Main character revived successfully')
-        dm.MoveTo(x, y)
-        dm.Delay(100)
-        dm.LeftClick()
-        dm.Delay(200)
-        return True
-    return False
-
-def has_non_black_in_region(dm, x1, y1, x2, y2, direction_name, threshold=0.015):
-    '''
-    Use non-black pixel ratio to determine if there are monsters in the region
-    threshold: Non-black pixel ratio threshold, default 1.5%
-    '''
-    non_black_count = 0
-    total_points = 0
-    step = 2
-    get_color = dm.GetColor  # Local reference cache for faster loop execution
-    for py in range(y1, y2 + 1, step):
-        for px in range(x1, x2 + 1, step):
-            color = get_color(px, py)
-            total_points += 1
-            if color != '080808' and color != '':
-                non_black_count += 1
-
-    if total_points == 0:
-        return False
-    ratio = non_black_count / total_points
-    has_non_black = ratio > threshold
-    if direction_name:
-        status = '[Monsters Found]' if has_non_black else '[No Monsters]'
-        print(f'''   └ {direction_name:4} Region ({x1},{y1})-({x2},{y2}) → {status}  (Non-black: {non_black_count}/{total_points} ≈ {ratio:.1%})''')
-    return has_non_black
-
-def check_formation(dm, region1, region2):
-    (r1, x1, y1) = dm.FindPic(region1[0], region1[1], region1[2], region1[3], '080808.bmp', '050505', 0.9, 0)
-    (r2, x2, y2) = dm.FindPic(region2[0], region2[1], region2[2], region2[3], '080808.bmp', '050505', 0.9, 0)
-    if x1 > 0 and x2 > 0:
-        return True
-    return False
+﻿import time
+from Battle.Drakemoon.fire_gwi.combat import initiation_battle
 
 def execute_skill_loop(dm):
     for key in [50, 51, 52, 53, 54,55]:
@@ -58,30 +10,13 @@ def execute_skill_loop(dm):
         dm.KeyPress(69)
         dm.Delay(50)
 
-def initial_call(dm):
-    dm.KeyPress(187)  # =
-    dm.Delay(50)
-    dm.KeyPress(82)  # R
-    dm.Delay(50)
-    dm.KeyPress(69)
-    dm.Delay(50)
-    dm.KeyPress(69)
-    dm.Delay(50)
-
-def initiation_battle(dm):
-    dm.Delay(50)
-    dm.KeyPress(81)  # Q
-    dm.Delay(50)
-    dm.KeyPress(87)  # W
-    dm.Delay(50)
-# Battle Strategies mapping (direction, monster_dir) -> action function
 
 def strategy_east_south(dm):
     dm.MoveTo(9, 371)
     time.sleep(0.45)
     dm.MoveTo(371, 1022)
     time.sleep(0.10)
-    dm.MoveTo(700, 650)
+    dm.MoveTo(500, 640)
 
     dm.Delay(50)
     execute_skill_loop(dm)
@@ -90,8 +25,8 @@ def strategy_east_south(dm):
 
 def strategy_east_west(dm):
     dm.MoveTo(9, 371)
-    time.sleep(0.55)
-    dm.MoveTo(155, 358)
+    time.sleep(0.65)
+    dm.MoveTo(125, 358)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -104,7 +39,7 @@ def strategy_east_north(dm):
     dm.Delay(50)
     dm.MoveTo(625, 0)
     time.sleep(0.15)
-    dm.MoveTo(825, 90)
+    dm.MoveTo(625, 120)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -116,7 +51,7 @@ def strategy_south_east(dm):
     dm.Delay(50)
     dm.MoveTo(1022, 322)
     time.sleep(0.33)
-    dm.MoveTo(580, 600)
+    dm.MoveTo(550, 550)
 
     dm.Delay(50)
     execute_skill_loop(dm)
@@ -130,8 +65,7 @@ def strategy_south_west(dm):
     dm.Delay(50)
     dm.MoveTo(8, 449)
     time.sleep(0.33)
-    dm.MoveTo(500, 600)
-
+    dm.MoveTo(435, 525)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -140,7 +74,7 @@ def strategy_south_west(dm):
 def strategy_south_north(dm):
     dm.MoveTo(487, 10)
     time.sleep(0.70)
-    dm.MoveTo(497, 425)
+    dm.MoveTo(525, 200)
 
     dm.Delay(50)
     execute_skill_loop(dm)
@@ -150,7 +84,7 @@ def strategy_south_north(dm):
 def strategy_west_east(dm):
     dm.MoveTo(1022, 352)
     dm.Delay(850)
-    dm.MoveTo(450, 375)
+    dm.MoveTo(225, 375)
 
     dm.Delay(50)
     execute_skill_loop(dm)
@@ -166,7 +100,7 @@ def strategy_west_south(dm):
     dm.Delay(50)
     dm.MoveTo(275, 1022)
     time.sleep(0.25)
-    dm.MoveTo(225, 555)
+    dm.MoveTo(350, 620)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -178,8 +112,7 @@ def strategy_west_north(dm):
     dm.Delay(50)
     dm.MoveTo(250, 5)
     time.sleep(0.33)
-    dm.MoveTo(250, 350)
-
+    dm.MoveTo(520, 350)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -190,7 +123,7 @@ def strategy_north_east(dm):
     time.sleep(0.45)
     dm.MoveTo(1022, 128)
     time.sleep(0.33)
-    dm.MoveTo(675, 301)
+    dm.MoveTo(500, 301)
 
     dm.Delay(50)
     execute_skill_loop(dm)
@@ -201,8 +134,7 @@ def strategy_north_south(dm):
     dm.MoveTo(480, 762)
     time.sleep(0.60)
     dm.Delay(50)
-    dm.MoveTo(628, 500)
-
+    dm.MoveTo(500, 625)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -217,13 +149,13 @@ def strategy_north_west(dm):
     dm.Delay(50)
     dm.MoveTo(0, 150)
     dm.Delay(250)
-    dm.MoveTo(300, 125)
-
+    dm.MoveTo(300, 175)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
-STRATEGIES = {
+
+STRATEGIES2 = {
     ('East', 'South'): strategy_east_south,
     ('East', 'West'): strategy_east_west,
     ('East', 'North'): strategy_east_north,
@@ -238,10 +170,9 @@ STRATEGIES = {
     ('North', 'West'): strategy_north_west,
 }
 
-def execute_battle_strategy(dm, direction, monster_dir):
-    strategy = STRATEGIES.get((direction, monster_dir))
+def execute_battle_strategy2(dm, direction, monster_dir):
+    strategy = STRATEGIES2.get((direction, monster_dir))
     if strategy:
         strategy(dm)
         return True
     return False
-
