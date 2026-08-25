@@ -1,5 +1,7 @@
 # Drake.py — Main entrypoint and orchestrator (Fire Gwi)
 
+from Battle.Drakemoon.kingyama.combat3 import execute_battle_strategy3
+from Battle.Drakemoon.kingyama.combat2 import execute_battle_strategy2
 from Battle.Drakemoon.kingyama.combat import initiation_battle
 from os import system
 import os
@@ -58,7 +60,7 @@ def is_paused():
 def relogin(dm):
     """Press Esc to open System Menu, then click 'Char Select'."""
     print('Relogin: Opening System Menu...')
-    # dm.KeyPress(27)  # Esc to open System Menu
+    dm.KeyPress(27)  # Esc to open System Menu
     dm.Delay(500)
     dm.MoveTo(509, 290)
     dm.Delay(500)
@@ -87,7 +89,7 @@ def check_food(dm):
     if x_bread > 0:
         print('Replenishing satiety')
         print('Replenished satiety 500 times, pausing script... ' + str(check_food.eat_count) + '/500')
-        if check_food.eat_count >= 800:
+        if check_food.eat_count >= 500:
             relogin(dm)
             check_food.eat_count = 0
             paused = True
@@ -203,15 +205,15 @@ def find_and_engage_monster(dm):
     (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
     if x <= 0:
         current_time_check = time.time()
-        if current_time_check - last_monster_seen_time > 3.5:
+        if current_time_check - last_monster_seen_time > 10:
             no_monster_search_count += 1
-            print(f'[Active] Searching for monsters on overworld... ({no_monster_search_count}/5)')
-            # last_monster_seen_time = current_time_check
-            # if no_monster_search_count >= 5:
-            #     print('No monsters found 5 times, pressing ESC to dismiss any popups...')
-            #     # dm.KeyPress(27)
-            #     dm.Delay(300)
-            #     no_monster_search_count = 0
+            print(f'[Active] Searching for monsters on overworld... ({no_monster_search_count}/10)')
+            last_monster_seen_time = current_time_check
+            if no_monster_search_count >= 10:
+                print('No monsters found 10 times, pressing ESC to dismiss any popups...')
+                dm.KeyPress(27)
+                dm.Delay(300)
+                no_monster_search_count = 0
         return False
 
     no_monster_search_count = 0
@@ -226,7 +228,7 @@ def find_and_engage_monster(dm):
     start_time = time.time()
     attempt = 1
 
-    while time.time() - start_time < 2:
+    while time.time() - start_time < 5:
         # if check_anti_cheat(dm):
         #     print('Anti-cheat (horse stamp) detected, will exit after current battle finishes')
         #     anti_cheat_detected = True
@@ -335,19 +337,18 @@ def handle_battle(dm):
                         for i, monster_dir in enumerate(found_monsters):
                             print(f'Executing strategy [{i+1}/{len(found_monsters)}] → Formation: {direction} | Monster: {monster_dir}')
                             if(i == 0): execute_battle_strategy(dm, direction, monster_dir)
-                            if(i == 1): execute_battle_strategy(dm, direction, monster_dir)
-                            if(i == 2): execute_battle_strategy(dm, direction, monster_dir)
+                            if(i == 1): execute_battle_strategy2(dm, direction, monster_dir)
+                            if(i == 2): execute_battle_strategy3(dm, direction, monster_dir)
                             
                             if i < len(found_monsters) - 1:
                                 print(f'Waiting {i} before next battle...')
                                 if(i==0):
-                                    time.sleep(duration-4)
                                     dm.KeyPress(49)
                                     dm.Delay(100)
                                     dm.KeyPress(49)
                                     dm.Delay(100)
                                 elif(i==1):
-                                    time.sleep(duration-3)
+                                    time.sleep(duration-4)
                                     dm.KeyPress(49)
                                     dm.Delay(100)
                                     dm.KeyPress(49)
@@ -499,9 +500,9 @@ def run_main_script():
                 check_food(dm)
 
                 battle_counter += 1
-                print(f'Battles completed: {battle_counter}/50')
-                if battle_counter >= 50:
-                    print('Reached 50 battles. Restarting application...')
+                print(f'Battles completed: {battle_counter}/25')
+                if battle_counter >= 25:
+                    print('Reached 25 battles. Relogging character...')
                     time.sleep(0.5)
                     if getattr(sys, 'frozen', None):
                         import subprocess

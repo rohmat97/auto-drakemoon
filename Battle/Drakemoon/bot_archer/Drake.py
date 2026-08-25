@@ -109,7 +109,7 @@ def check_food(dm):
             dm.UnBindWindow()
             return True
 
-    (_, x_empty, y_empty) = dm.FindPic(582, 418, 617, 446, 'emptyfooddrake.bmp', '050505', 0.8, 0)
+    (_, x_empty, y_empty) = dm.FindPic(450, 350, 680, 480, 'emptyfoodinter.bmp', '050505', 0.8, 0)
     if x_empty > 0:
         print('Satiety depleted, script paused')
         check_food.eat_count = 0

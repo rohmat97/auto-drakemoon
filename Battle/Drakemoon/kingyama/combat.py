@@ -84,7 +84,7 @@ def pan_camera(dm, x, y, duration_sec):
         dm.Delay(25)
 
 def execute_skill_loop(dm):
-    for key in [50, 51, 52, 53, 54, 55]:
+    for key in [50, 51, 52]:
         send_key(dm, key, 35, 35)
         send_key(dm, 69, 35, 35)
         send_key(dm, 69, 35, 35)
@@ -105,8 +105,10 @@ def initiation_battle(dm):
 
 def strategy_east_south(dm):
     pan_camera(dm, 9, 371, 0.35)
+    dm.Delay(50)
     pan_camera(dm, 371, 767, 0.10)
-    dm.MoveTo(750, 500)
+    dm.Delay(50)
+    dm.MoveTo(750, 550)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -138,7 +140,7 @@ def strategy_south_east(dm):
     dm.Delay(50)
 
 def strategy_south_west(dm):
-    pan_camera(dm, 487, 0, 0.45)
+    pan_camera(dm, 487, 0, 0.375)
     dm.Delay(50)
     pan_camera(dm, 8, 449, 0.25)
     dm.MoveTo(500, 600)
@@ -164,7 +166,7 @@ def strategy_west_south(dm):
     pan_camera(dm, 1023, 352, 0.35)
     dm.Delay(50)
     pan_camera(dm, 275, 767, 0.25)
-    dm.MoveTo(225, 305)
+    dm.MoveTo(175, 325)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -173,7 +175,7 @@ def strategy_west_north(dm):
     pan_camera(dm, 1023, 352, 0.30)
     dm.Delay(50)
     pan_camera(dm, 250, 0, 0.28)
-    dm.MoveTo(250, 350)
+    dm.MoveTo(350, 350)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -181,7 +183,7 @@ def strategy_west_north(dm):
 def strategy_north_east(dm):
     pan_camera(dm, 480, 767, 0.35)
     pan_camera(dm, 1023, 128, 0.28)
-    dm.MoveTo(675, 301)
+    dm.MoveTo(550, 301)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -189,7 +191,7 @@ def strategy_north_east(dm):
 def strategy_north_south(dm):
     pan_camera(dm, 440, 767, 0.45)
     dm.Delay(50)
-    dm.MoveTo(628, 500)
+    dm.MoveTo(550, 400)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -198,7 +200,7 @@ def strategy_north_west(dm):
     pan_camera(dm, 483, 767, 0.40)
     dm.Delay(50)
     pan_camera(dm, 0, 150, 0.25)
-    dm.MoveTo(500, 125)
+    dm.MoveTo(450, 200)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
