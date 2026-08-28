@@ -32,6 +32,7 @@ from Battle.Drakemoon.bot_tengu.combat import (
     check_revive, has_non_black_in_region, check_formation,
     execute_battle_strategy, initial_call,
 )
+from captcha_solver import solve_captcha
 
 # ---------------------------------------------------------------------------
 # Image pattern strings (kept here to avoid bloating config with long literals)
@@ -89,7 +90,7 @@ def check_food(dm):
     # dm.KeyUp(18)
     # dm.Delay(200)
     # press alt+2 every times battle
-    if (check_food.eat_count % 1 == 0):
+    if (check_food.eat_count % 2 == 0):
         dm.KeyDown(18)
         dm.Delay(200)
         dm.KeyPress(50)
@@ -190,12 +191,95 @@ def ensure_team_alive(dm, max_retries=3):
     return True
 
 
+def handle_captcha(dm, x_captcha, y_captcha):
+    """
+    Handles captcha dialog:
+    1. Moves cursor away so it doesn't block the characters.
+    2. Waits 2 seconds.
+    3. Captures the captcha region to temp_captcha.bmp.
+    4. Solves the captcha code via solve_captcha().
+    5. Clicks the input text box and types the code.
+    6. Presses Enter and clicks the OK button.
+    """
+    print(f'[Captcha Handler] Captcha dialog located at ({x_captcha}, {y_captcha}).')
+    # 1. Move cursor away from the dialog
+    dm.MoveTo(0, 0)
+    
+    # 2. Wait for 2 seconds as requested
+    print('[Captcha Handler] Waiting 2 seconds before solving...')
+    time.sleep(2.0)
+
+    # 3. Capture captcha rectangle relative to detect_captcha match
+    x1 = max(0, x_captcha + 3)
+    y1 = max(0, y_captcha - 84)
+    x2 = min(1024, x_captcha + 266)
+    y2 = min(768, y_captcha + 6)
+
+    captcha_save_path = os.path.join(dm.getPath(), 'temp_captcha.bmp')
+    dm.Capture(x1, y1, x2, y2, captcha_save_path)
+    dm.Delay(100)
+
+    # 4. Recognize captcha text
+    code = solve_captcha(captcha_save_path, debug=True)
+    print(f'[Captcha Handler] Solved code: "{code}"')
+
+    # 5. Focus/click the input field
+    input_x = x_captcha + 135
+    input_y = y_captcha + 70
+    dm.MoveTo(input_x, input_y)
+    dm.Delay(150)
+    dm.LeftClick()
+    dm.Delay(200)
+
+    # 6. Type the characters into the form
+    if code:
+        for char in code:
+            dm.KeyPressChar(char)
+            dm.Delay(80)
+    else:
+        print('[Captcha Handler] Warning: No code recognized, pressing Enter anyway.')
+
+    dm.Delay(200)
+
+    # 7. Press Enter key
+    dm.KeyPress(13)
+    dm.Delay(300)
+
+    # 8. Click OK button as confirmation
+    ok_x = x_captcha + 79
+    ok_y = y_captcha + 121
+    dm.MoveTo(ok_x, ok_y)
+    dm.Delay(150)
+    dm.LeftClick()
+    dm.Delay(1000)
+
+    print('[Captcha Handler] Form submitted and OK clicked successfully.')
+    return True
+
+
 def check_anti_cheat(dm):
-    """Returns True if the anti-cheat horse-stamp is detected."""
+    """Returns True if anti-cheat (horse-stamp missing or captcha dialog popup) is detected."""
+    # 1. Check horse stamp vs bread indicator
     (_, x_horse, _) = dm.FindPic(599, 21, 650, 49, r'anti_cheat\horse.bmp', '050505', 0.8, 0)
     (_, x_bread, _) = dm.FindPic(50, 650, 93, 689, r'anti_cheat\bread.bmp', '050505', 0.8, 0)
     if x_horse <= 0 and x_bread > 0:
+        print('[Anti-Cheat] Horse stamp missing while bread icon is visible! Triggering relogin...')
+        relogin(dm)
+        print('[Anti-Cheat] Idling for 5 minutes...')
+        for m in range(5, 0, -1):
+            print(f'[Anti-Cheat] Waiting... {m} minute(s) remaining.')
+            time.sleep(60)
+        print('[Anti-Cheat] 5 minutes passed. Triggering second relogin...')
+        relogin(dm)
         return True
+
+    # 2. Check captcha popup box
+    (_, x_captcha, y_captcha) = dm.FindPic(0, 0, 1024, 768, r'anti_cheat\detect_captcha.bmp', '050505', 0.8, 0)
+    if x_captcha > 0:
+        print(f'[Anti-Cheat] Captcha dialog detected at ({x_captcha}, {y_captcha})!')
+        handle_captcha(dm, x_captcha, y_captcha)
+        # return True
+
     return False
 
 
@@ -234,20 +318,32 @@ def find_and_engage_monster(dm):
     global last_monster_seen_time, anti_cheat_detected, no_monster_search_count
     """Search for a monster on the overworld and attempt to enter battle.
     Returns True if battle was entered, False otherwise."""
-    
-    # Strictly ensure all team members are alive before searching for or clicking any monsters
-    if not ensure_team_alive(dm):
-        return False
+    current_time = time.time()
+    if not hasattr(find_and_engage_monster, "last_revive_check"):
+        find_and_engage_monster.last_revive_check = 0
+    if not hasattr(find_and_engage_monster, "last_dead_check"):
+        find_and_engage_monster.last_dead_check = 0
+
+    if current_time - find_and_engage_monster.last_revive_check > 5.0:
+        find_and_engage_monster.last_revive_check = current_time
+        if check_revive(dm, is_paused):
+            print('Waiting for town to load after reviving main character...')
+            time.sleep(5)  # Wait for the loading screen to pass
+            return False
+        
+    if current_time - find_and_engage_monster.last_dead_check > 5.0:
+        find_and_engage_monster.last_dead_check = current_time
+        check_dead_mercenary(dm)
 
     (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
     if x <= 0:
         current_time_check = time.time()
-        if current_time_check - last_monster_seen_time > 3.5:
+        if current_time_check - last_monster_seen_time > 10:
             no_monster_search_count += 1
-            print(f'[Active] Searching for monsters on overworld... ({no_monster_search_count}/5)')
+            print(f'[Active] Searching for monsters on overworld... ({no_monster_search_count}/10)')
             last_monster_seen_time = current_time_check
-            if no_monster_search_count >= 5:
-                print('No monsters found 5 times, pressing ESC to dismiss any popups...')
+            if no_monster_search_count >= 10:
+                print('No monsters found 10 times, pressing ESC to dismiss any popups...')
                 dm.KeyPress(27)
                 dm.Delay(300)
                 no_monster_search_count = 0
@@ -261,20 +357,18 @@ def find_and_engage_monster(dm):
     dm.RightClick()
     dm.Delay(300)
 
-    print('Waiting to enter battle screen... (max 4s)')
+    print('Waiting to enter battle screen... (max 3s)')
     start_time = time.time()
     attempt = 1
 
-    while time.time() - start_time < 2.0:
-        # if check_anti_cheat(dm):
-        #     print('Anti-cheat (horse stamp) detected, will exit after current battle finishes')
-        #     anti_cheat_detected = True
+    while time.time() - start_time < 5:
+        check_anti_cheat(dm)
 
         if is_in_battle(dm):
             print('✅ Successfully entered battle screen')
             return True
 
-        if time.time() - start_time > 1.2 and attempt == 1:
+        if time.time() - start_time > 0.5 and attempt == 1:
             print('Battle not entered, right-clicking monster again...')
             dm.MoveTo(x, y)
             dm.Delay(100)
@@ -358,7 +452,7 @@ def handle_battle(dm):
 # Main game loop
 # ---------------------------------------------------------------------------
 def run_main_script():
-    global paused
+    global paused, anti_cheat_detected
     dm = RegDm.reg()
     ret = dm.reg(DM_REG_KEY, DM_REG_CODE)
     print('DM registration result:', ret)
@@ -417,25 +511,39 @@ def run_main_script():
             if check_stamina(dm):
                 break
 
+            check_anti_cheat(dm)
+                # anti_cheat_detected = True
+
             if paused:
                 gc.collect()  # Collect when paused
                 time.sleep(0.5)
                 continue
 
-            # If anti-cheat was detected, exit now that the battle is over
-            if anti_cheat_detected:
-                print('Battle finished. Anti-cheat was detected, exiting now...')
+            # Anti-cheat detected outside of battle — alert, relogin, and exit
+            if anti_cheat_detected and not is_in_battle(dm):
+                print('Anti-cheat detected (not in battle), playing alert and exiting...')
                 for _ in range(10):
                     play_alert_sound(dm)
                     time.sleep(0.5)
-                # dm.UnBindWindow()
+                relogin(dm)
                 time.sleep(2)
+                sys.exit(10)
 
             battle_entered = find_and_engage_monster(dm)
             if battle_entered or is_in_battle(dm):
                 print('Entering battle...')
                 handle_battle(dm)
                 gc.collect()  # Clean up COM references and memory after battle
+
+                # If anti-cheat was detected, exit now that the battle is over
+                if anti_cheat_detected:
+                    print('Battle finished. Anti-cheat was detected, exiting now...')
+                    for _ in range(10):
+                        play_alert_sound(dm)
+                        time.sleep(0.5)
+                    relogin(dm)
+                    time.sleep(2)
+                    sys.exit(10)
 
        
                 # -----------------------------------------------------------------
@@ -464,16 +572,16 @@ def run_main_script():
                 print('==================================================')
 
                 battle_counter += 1
-                print(f'Battles completed: {battle_counter}/25')
-                if battle_counter >= 25:
-                    print('Reached 25 battles. Relogging character...')
-                    system('cls')
-                    gc.collect()
-                    battle_counter = 0
-                    print('Performing relogin...')
-                    time.sleep(2)
-                    relogin(dm)
-                    time.sleep(10)
+                # print(f'Battles completed: {battle_counter}/25')
+                # if battle_counter >= 25:
+                #     print('Reached 25 battles. Relogging character...')
+                #     system('cls')
+                #     gc.collect()
+                #     battle_counter = 0
+                #     print('Performing relogin...')
+                #     time.sleep(2)
+                #     relogin(dm)
+                #     time.sleep(10)
 
             loop_counter += 1
             if loop_counter % 50 == 0:
