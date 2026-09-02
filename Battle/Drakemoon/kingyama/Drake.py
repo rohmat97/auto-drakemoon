@@ -30,7 +30,7 @@ from Battle.Drakemoon.kingyama.combat import (
     execute_battle_strategy, initial_call,
 )
 from Battle.Drakemoon.kingyama.combat2 import execute_battle_strategy2
-from Battle.Drakemoon.kingyama.combat3 import execute_battle_strategy3
+from Battle.Drakemoon.kingyama.combat3 import execute_battle_strategy3, execute_skill_loop as execute_skill_loop3
 from Battle.Drakemoon.kingyama.combat import initiation_battle
 from captcha_solver import solve_captcha
 from session_scheduler import SessionScheduler, SessionConfig
@@ -38,7 +38,7 @@ from session_scheduler import SessionScheduler, SessionConfig
 # ---------------------------------------------------------------------------
 # Image pattern strings
 # ---------------------------------------------------------------------------
-MONSTER_IMAGES = '|'.join([rf'koh{i}.bmp' for i in range(1, 18)])
+MONSTER_IMAGES = '|'.join([rf'kingyama\koh{i}.bmp' for i in range(1, 43)])
 DRAKE_IMAGES = '|'.join([rf'Character\drakemoon\drake{i}.bmp' for i in range(1, 12)])
 
 # ---------------------------------------------------------------------------
@@ -56,20 +56,20 @@ def is_paused():
 # ---------------------------------------------------------------------------
 # Grinding Session & Break Guidelines Configuration
 # ---------------------------------------------------------------------------
-# Hunt session duration before break: 1 to 2 hours (in seconds)
-HUNT_SESSION_MIN_SECONDS = 60 * 60    # 1 hour (3600s)
-HUNT_SESSION_MAX_SECONDS = 120 * 60   # 2 hours (7200s)
+# Hunt session duration before break: 45 minutes to 1 hour (in seconds)
+HUNT_SESSION_MIN_SECONDS = 0.8 * 60 * 60    # 0.8 hour
+HUNT_SESSION_MAX_SECONDS = 1.5 * 60 * 60    # 1.5 hour
 
 # Continuous battles threshold before break: 100 to 150 battles
 BATTLES_BEFORE_BREAK_MIN = 100
-BATTLES_BEFORE_BREAK_MAX = 150
+BATTLES_BEFORE_BREAK_MAX = 200
 
-# Total break duration: 5 to 10 minutes (in seconds)
-BREAK_DURATION_MIN_SECONDS = 5 * 60   # 5 minutes (300s)
-BREAK_DURATION_MAX_SECONDS = 10 * 60  # 10 minutes (600s)
+# Total break duration: 2 to 3 minutes (in seconds)
+BREAK_DURATION_MIN_SECONDS = 1 * 60   # 1 minutes (60s)
+BREAK_DURATION_MAX_SECONDS = 3 * 60  # 3 minutes (180s)
 
 # Town activity duration to reset server combat metrics: 2 to 3 minutes (in seconds)
-TOWN_ACTIVITY_MIN_SECONDS = 2 * 60    # 2 minutes (120s)
+TOWN_ACTIVITY_MIN_SECONDS = 1 * 60    # 1 minutes (60s)
 TOWN_ACTIVITY_MAX_SECONDS = 3 * 60    # 3 minutes (180s)
 
 
@@ -91,6 +91,122 @@ def relogin(dm):
     dm.Delay(2500)
 
 
+def organize_items(dm):
+    """
+    Opens inventory and browses mercenary tabs, simulating item organization and management.
+    """
+    print('[Inventory] 🎒 Opening inventory to organize items...')
+    dm.KeyPress(73)  # 'i' key
+    dm.Delay(600)
+
+    # Iterate through mercenary tabs (keys: 1..9, 0, -, =)
+    merc_keys = [49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 189, 187]
+    random.shuffle(merc_keys)
+    for key in merc_keys:
+        dm.KeyPress(key)
+        dm.Delay(random.randint(200, 400))
+
+        # Simulate inspecting/organizing inventory grid slots (coords 560~760, 140~360)
+        for _ in range(random.randint(2, 4)):
+            rx = random.randint(560, 760)
+            ry = random.randint(140, 360)
+            dm.MoveTo(rx, ry)
+            dm.Delay(150)
+            dm.LeftClick()
+            dm.Delay(200)
+            dm.MoveTo(rx+20, ry+20)
+            dm.Delay(random.randint(100, 250))
+            dm.LeftClick()
+            dm.Delay(150)
+
+    # Replenish satiety / check food (Alt + 2)
+    dm.KeyDown(18)
+    dm.KeyPress(50)
+    dm.KeyUp(18)
+    dm.Delay(300)
+
+    # Close Inventory ('i')
+    print('[Inventory] Closing inventory...')
+    dm.KeyPress(73)  # 'i' key
+    dm.Delay(500)
+
+
+def reorganize_and_consume_item(dm):
+    """
+    1. Opens inventory ('i').
+    2. Browses and reorganizes items across mercenary tabs.
+    3. Selects main character tab ('1').
+    4. Finds break_inventory_item.bmp, moves cursor to it, and right clicks 1 time to consume.
+    5. Presses Esc to close inventory.
+    """
+    print('[Inventory] 🎒 Opening inventory to reorganize items and consume item...')
+    dm.KeyPress(73)  # 'i' key
+    dm.Delay(600)
+
+    # Iterate through mercenary tabs (keys: 1..9, 0, -, =)
+    merc_keys = [49, 50]
+    random.shuffle(merc_keys)
+    for key in merc_keys:
+        dm.KeyPress(key)
+        dm.Delay(random.randint(200, 400))
+
+        # Simulate inspecting/organizing inventory grid slots (coords 560~760, 140~360)
+        for _ in range(random.randint(2, 4)):
+            rx = random.randint(560, 760)
+            ry = random.randint(140, 360)
+            dm.MoveTo(rx, ry)
+            dm.Delay(1000)
+            dm.LeftClick()
+            dm.Delay(1000)
+            dm.MoveTo(rx + 20, ry + 20)
+            dm.Delay(random.randint(1000, 2000))
+            dm.LeftClick()
+            dm.Delay(1000)
+
+
+    # Select main character tab ('1') before searching for item
+    dm.KeyPress(49)  # '1' key
+    dm.Delay(400)
+
+    # Find and consume item (break_inventory_item.bmp)
+    print('[Inventory] Looking for item image (break_inventory_item.bmp)...')
+    item_used = False
+    for attempt in range(15):
+        (_, ix, iy) = dm.FindPic(0, 0, 1024, 768, 'break_inventory_item.bmp', '101010', 0.75, 0)
+        if ix > 0:
+            print(f'[Inventory] Item detected at ({ix}, {iy}). Moving cursor and right-clicking 1 time to consume...')
+            dm.MoveTo(ix + 5, iy + 5)
+            dm.Delay(200)
+            dm.RightClick()
+            dm.Delay(500)
+            item_used = True
+            break
+        time.sleep(0.3)
+
+    if not item_used:
+        print('[Inventory] ⚠️ Item (break_inventory_item.bmp) not detected in inventory.')
+
+    # Press Esc to close inventory
+    print('[Inventory] Pressing Esc to close inventory...')
+    dm.KeyPress(27)  # Esc key
+    dm.Delay(500)
+
+    # Standby for 30 seconds to 1 minutes before continuing battle
+    standby_seconds = random.randint(30, 60)
+    print(f'[Standby] ⏳ Standing by for {standby_seconds // 60}m {standby_seconds % 60}s before resuming battles...')
+    start_standby = time.time()
+    while time.time() - start_standby < standby_seconds:
+        if is_paused():
+            time.sleep(1)
+            continue
+        remaining = int(standby_seconds - (time.time() - start_standby))
+        if remaining > 0 and remaining % 15 == 0:
+            print(f'[Standby] Waiting... {remaining // 60}m {remaining % 60}s remaining.')
+        time.sleep(1)
+
+    print('[Standby] ✅ Standby completed. Resuming battles...\n')
+
+
 def simulate_town_activities(dm, duration_seconds=150):
     """
     Spends 2-3 minutes performing town actions (마을):
@@ -102,39 +218,10 @@ def simulate_town_activities(dm, duration_seconds=150):
     print(f'[Town Activity] Simulating town routine for ~{duration_seconds // 60}m {duration_seconds % 60}s...')
     start_time = time.time()
 
-    # 1. Open Inventory ('i')
-    print('[Town Activity] Opening inventory to organize items...')
-    dm.KeyPress(73)  # 'i' key
-    dm.Delay(600)
+    # 1. Organize items in inventory
+    organize_items(dm)
 
-    # 2. Iterate through mercenary tabs (keys: 1..9, 0, -, =)
-    merc_keys = [49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 189, 187]
-    random.shuffle(merc_keys)
-    for key in merc_keys:
-        if time.time() - start_time >= (duration_seconds - 30):
-            break
-        dm.KeyPress(key)
-        dm.Delay(random.randint(300, 600))
-
-        # Simulate inspecting inventory grid slots (coords 560~760, 140~360)
-        for _ in range(random.randint(2, 4)):
-            rx = random.randint(560, 760)
-            ry = random.randint(140, 360)
-            dm.MoveTo(rx, ry)
-            dm.Delay(random.randint(150, 400))
-
-    # 3. Replenish satiety / check food (Alt + 2)
-    dm.KeyDown(18)
-    dm.KeyPress(50)
-    dm.KeyUp(18)
-    dm.Delay(300)
-
-    # 4. Close Inventory ('i')
-    print('[Town Activity] Closing inventory...')
-    dm.KeyPress(73)  # 'i' key
-    dm.Delay(500)
-
-    # 5. Spend remaining town activity time with natural pacing & minor idle / checks
+    # 2. Spend remaining town activity time with natural pacing & minor idle / checks
     while time.time() - start_time < duration_seconds:
         remaining = int(duration_seconds - (time.time() - start_time))
         print(f'[Town Activity] Active in town: {remaining}s remaining...')
@@ -249,7 +336,7 @@ def travel_to_town_via_portal(dm):
     # Check town confirmation images (Hanyang title, verified, verified2, verified3) until found
     print('[Town Travel] Waiting and verifying arrival inside town...')
     in_town = False
-    town_verified_images = 'break_town_hanyang.bmp'
+    town_verified_images = 'break_town_hanyang.bmp|break_town_verified.bmp'
     attempt = 0
     while not in_town:
         attempt += 1
@@ -402,13 +489,34 @@ def buy_store_item_and_use(dm):
         if bx > 0:
             inv_open = True
 
-    # Right-click item at (600, 265) and confirm with Enter
-    dm.MoveTo(600, 265)
-    dm.Delay(200)
-    dm.RightClick()
-    dm.Delay(300)
-    dm.KeyPress(13)  # Enter key
-    dm.Delay(500)
+    # Find item in inventory, right-click it and confirm with Enter
+    print('[Store Interaction] Looking for item image in inventory...')
+    item_used = False
+    for _ in range(25):
+        (_, ix, iy) = dm.FindPic(0, 0, 1024, 768, 'scroll_travel_kingyama.bmp', '101010', 0.75, 0)
+        if ix > 0:
+            print(f'[Store Interaction] Item detected in inventory at ({ix}, {iy}). Moving cursor and using item...')
+            dm.MoveTo(ix + 5, iy + 5)
+            dm.Delay(200)
+            dm.RightClick()
+            dm.Delay(300)
+            dm.KeyPress(13)  # Enter key
+            dm.Delay(500)
+            item_used = True
+            break
+        time.sleep(0.5)
+
+    if not item_used:
+        print('[Store Interaction] ❌ Item image not detected in inventory! Unbinding window and exiting application...')
+        try:
+            dm.UnBindWindow()
+        except Exception:
+            pass
+        try:
+            os.kill(os.getppid(), 9)
+        except Exception:
+            pass
+        sys.exit(0)
 
     print('[Store Interaction] Store interaction and item use completed successfully.')
 
@@ -421,8 +529,8 @@ def handle_grinding_break_session(dm, reason=""):
     3. Enters store, purchases item, and uses it from inventory.
     4. Standby duration is managed cleanly by SessionScheduler.
     """
-    # town_activity_seconds = random.randint(TOWN_ACTIVITY_MIN_SECONDS, TOWN_ACTIVITY_MAX_SECONDS)
-    town_activity_seconds = random.randint(2, 5) #test purpose 
+    town_activity_seconds = random.randint(TOWN_ACTIVITY_MIN_SECONDS, TOWN_ACTIVITY_MAX_SECONDS)
+    # town_activity_seconds = random.randint(2, 5) #test purpose 
 
     print('\n' + '=' * 65)
     print(f'[Break Session] 🛑 Initiating Grinding Break ({reason})')
@@ -484,10 +592,24 @@ def check_dead_mercenary(dm):
     (_, x, _) = dm.FindPic(0, 0, 110, 650, DRAKE_IMAGES, '050505', 0.8, 0)
     if x > 0:
         print('Dead mercenary detected, opening inventory to revive...')
-        # Press 'i' to open inventory
-        dm.KeyPress(73)
-        dm.Delay(500)
-        
+        # Ensure inventory is open first via Bag icon detection loop
+        inv_open = False
+        for attempt in range(10):
+            (_, bx, by) = dm.FindPic(0, 0, 1024, 768, 'break_inventory_bag.bmp|bag.bmp', '101010', 0.75, 0)
+            if bx > 0:
+                print(f'[Revival] ✅ Inventory is open (Bag title detected at ({bx}, {by})).')
+                inv_open = True
+                break
+            print(f'[Revival] Pressing "i" to open inventory (attempt {attempt + 1}/10)...')
+            dm.KeyPress(73)
+            dm.Delay(1000)
+
+        if not inv_open:
+            print('[Revival] ⚠️ Warning: Inventory Bag title not confirmed, attempting final check...')
+            (_, bx, by) = dm.FindPic(0, 0, 1024, 768, 'break_inventory_bag.bmp|bag.bmp', '101010', 0.75, 0)
+            if bx > 0:
+                inv_open = True
+
         # Save a debug screen capture of what DaMo actually sees
         debug_path = os.path.join(dm.getPath(), 'debug_inventory.bmp')
         dm.Capture(0, 0, 1024, 768, debug_path)
@@ -501,11 +623,13 @@ def check_dead_mercenary(dm):
         keys = [50, 51, 52, 53, 54, 55, 56, 57, 48, 189, 187]
         for key in keys:
             dm.KeyPress(key)
-            dm.Delay(200)  # Increased delay to allow inventory UI to load
-            dm.MoveTo(600,150)
-            dm.Delay(200)
+            dm.Delay(1000)  # Delay to allow mercenary inventory UI to load
+            (_, rx, ry) = dm.FindPic(0, 0, 1024, 768, 'drake_revival_item.bmp|revival.bmp', '101010', 0.75, 0)
+            if rx > 0:
+                dm.MoveTo(rx + 5, ry + 5)
+                dm.Delay(500)
             dm.RightClick()
-            dm.Delay(200)
+            dm.Delay(500)
         
         # Press 'i' again to close inventory
         dm.KeyPress(73)
@@ -714,6 +838,16 @@ def handle_battle(dm):
             break
 
         if not action_executed:
+            # 1. Check for monsters around the battle map (nearby) up to 5 times
+            for attempt in range(5):
+                (_, mx, my) = dm.FindPic(0, 0, 1024, 768, MONSTER_IMAGES, '050505', 0.8, 0)
+                if mx > 0:
+                    print(f'Monster detected nearby on battle screen at coords: ({mx}, {my}) (attempt {attempt + 1}/15). Exiting battle...')
+                    action_executed = True
+                    break
+                time.sleep(0.1)
+
+            # 2. If no monster detected around map, proceed with formation checking
             for direction, regions in FORMATION_REGIONS.items():
                 if action_executed:
                     break
@@ -779,7 +913,7 @@ def handle_battle(dm):
                                     dm.KeyPress(49)
                                     dm.Delay(100)
                                 elif i == 1:
-                                    time.sleep(duration - 4)
+                                    time.sleep(duration - 5)
                                     dm.KeyPress(49)
                                     dm.Delay(100)
                                     dm.KeyPress(49)
@@ -887,13 +1021,14 @@ def run_main_script():
 
     try:
         loop_counter = 0
+        battle_counter = 0
 
         def primary_game_step() -> bool:
             """
             Executes one overworld exploration/combat tick.
             Returns True if a battle was fought, False otherwise.
             """
-            nonlocal loop_counter
+            nonlocal loop_counter, battle_counter
 
             if check_stamina(dm):
                 scheduler.stop()
@@ -910,12 +1045,20 @@ def run_main_script():
                 check_revive(dm, is_paused)
                 check_food(dm)
 
+                battle_counter += 1
                 elapsed_mins = int((time.time() - scheduler.session_start_time) // 60)
                 target_mins = int(scheduler._target_duration // 60)
                 print(
                     f'Battles completed: {scheduler.current_iteration + 1}/{scheduler._target_iterations} '
-                    f'(Grinding session: {elapsed_mins}m/{target_mins}m)'
+                    f'(Grinding session: {elapsed_mins}m/{target_mins}m | Batch: {battle_counter}/20)'
                 )
+
+                if battle_counter >= 20:
+                    print('Reached 20 battles threshold. Reorganizing inventory and consuming item...')
+                    battle_counter = 0
+                    time.sleep(1)
+                    relogin(dm)
+
                 return True
 
             loop_counter += 1

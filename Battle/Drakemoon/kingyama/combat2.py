@@ -45,7 +45,7 @@ def strategy_east_south(dm):
     dm.Delay(50)
     pan_camera(dm, 371, 767, 0.10)
     dm.Delay(50)
-    dm.MoveTo(750, 550)
+    dm.MoveTo(750, 375)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -62,7 +62,7 @@ def strategy_east_north(dm):
     dm.MoveTo(511, 341)
     dm.Delay(50)
     pan_camera(dm, 625, 0, 0.15)
-    dm.MoveTo(825, 190)
+    dm.MoveTo(750, 200)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -87,14 +87,14 @@ def strategy_south_west(dm):
 
 def strategy_south_north(dm):
     pan_camera(dm, 487, 0, 0.60)
-    dm.MoveTo(497, 425)
+    dm.MoveTo(425, 450)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
 def strategy_west_east(dm):
-    pan_camera(dm, 1023, 352, 0.65)
-    dm.MoveTo(400, 425)
+    pan_camera(dm, 1023, 352, 0.6)
+    dm.MoveTo(225, 425)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -104,7 +104,7 @@ def strategy_west_south(dm):
     dm.Delay(50)
     pan_camera(dm, 275, 767, 0.25)
     dm.Delay(50)
-    dm.MoveTo(175, 375)
+    dm.MoveTo(150, 325)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -113,7 +113,7 @@ def strategy_west_north(dm):
     pan_camera(dm, 1023, 352, 0.30)
     dm.Delay(50)
     pan_camera(dm, 250, 0, 0.28)
-    dm.MoveTo(350, 350)
+    dm.MoveTo(300, 400) # changed
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
