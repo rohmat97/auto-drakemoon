@@ -45,7 +45,7 @@ def strategy_east_south(dm):
     dm.Delay(50)
     pan_camera(dm, 371, 767, 0.10)
     dm.Delay(50)
-    dm.MoveTo(750, 375)
+    dm.MoveTo(800, 425)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)

@@ -41,6 +41,13 @@ from session_scheduler import SessionScheduler, SessionConfig
 MONSTER_IMAGES = '|'.join([rf'kingyama\koh{i}.bmp' for i in range(1, 43)])
 DRAKE_IMAGES = '|'.join([rf'Character\drakemoon\drake{i}.bmp' for i in range(1, 12)])
 
+# Concentric monster search regions: search center outward to corners
+MONSTER_SEARCH_ZONES = [
+    (352, 242, 672, 442),  # Zone 1: Center (immediate proximity to player)
+    (222, 162, 802, 522),  # Zone 2: Mid-range
+    (0, 0, 1024, 768),     # Zone 3: Full window (corners)
+]
+
 # ---------------------------------------------------------------------------
 # State variables
 # ---------------------------------------------------------------------------
@@ -56,19 +63,18 @@ def is_paused():
 # ---------------------------------------------------------------------------
 # Grinding Session & Break Guidelines Configuration
 # ---------------------------------------------------------------------------
-# Hunt session duration before break: 45 minutes to 1 hour (in seconds)
-HUNT_SESSION_MIN_SECONDS = 0.8 * 60 * 60    # 0.8 hour
-HUNT_SESSION_MAX_SECONDS = 1.5 * 60 * 60    # 1.5 hour
+# Continuous battles threshold before town break: 120 to 240 battles
+BATTLES_BEFORE_BREAK_MIN = 120
+BATTLES_BEFORE_BREAK_MAX = 240
 
-# Continuous battles threshold before break: 100 to 150 battles
-BATTLES_BEFORE_BREAK_MIN = 100
-BATTLES_BEFORE_BREAK_MAX = 200
+# Battles per batch before relogging
+BATTLES_PER_BATCH_RELOG = 30
 
-# Total break duration: 2 to 3 minutes (in seconds)
+# Total break duration: 1 to 3 minutes (in seconds)
 BREAK_DURATION_MIN_SECONDS = 1 * 60   # 1 minutes (60s)
 BREAK_DURATION_MAX_SECONDS = 3 * 60  # 3 minutes (180s)
 
-# Town activity duration to reset server combat metrics: 2 to 3 minutes (in seconds)
+# Town activity duration to reset server combat metrics: 1 to 3 minutes (in seconds)
 TOWN_ACTIVITY_MIN_SECONDS = 1 * 60    # 1 minutes (60s)
 TOWN_ACTIVITY_MAX_SECONDS = 3 * 60    # 3 minutes (180s)
 
@@ -86,9 +92,22 @@ def relogin(dm):
     dm.LeftClick()
     dm.Delay(500)
     dm.KeyPress(13)
-    dm.Delay(5000)
+    # Move cursor from corner to corner every 5 to 10 seconds for 150 seconds
+    corners = [(10, 10), (1014, 10), (1014, 758), (10, 758)]
+    start_time = time.time()
+    corner_idx = 0
+    while time.time() - start_time < 150:
+        cx, cy = corners[corner_idx % len(corners)]
+        dm.MoveTo(cx, cy)
+        corner_idx += 1
+        sleep_sec = min(float(random.randint(5, 10)), max(0.0, 150.0 - (time.time() - start_time)))
+        if sleep_sec > 0:
+            time.sleep(sleep_sec)
     dm.KeyPress(13)
-    dm.Delay(2500)
+    dm.Delay(5000)
+    # press A to enter game
+    dm.KeyPress(65)
+    dm.Delay(500)
 
 
 def organize_items(dm):
@@ -119,12 +138,6 @@ def organize_items(dm):
             dm.LeftClick()
             dm.Delay(150)
 
-    # Replenish satiety / check food (Alt + 2)
-    dm.KeyDown(18)
-    dm.KeyPress(50)
-    dm.KeyUp(18)
-    dm.Delay(300)
-
     # Close Inventory ('i')
     print('[Inventory] Closing inventory...')
     dm.KeyPress(73)  # 'i' key
@@ -144,24 +157,24 @@ def reorganize_and_consume_item(dm):
     dm.Delay(600)
 
     # Iterate through mercenary tabs (keys: 1..9, 0, -, =)
-    merc_keys = [49, 50]
+    merc_keys = [490]
     random.shuffle(merc_keys)
     for key in merc_keys:
         dm.KeyPress(key)
         dm.Delay(random.randint(200, 400))
 
         # Simulate inspecting/organizing inventory grid slots (coords 560~760, 140~360)
-        for _ in range(random.randint(2, 4)):
+        for _ in range(random.randint(1, 5)):
             rx = random.randint(560, 760)
             ry = random.randint(140, 360)
             dm.MoveTo(rx, ry)
-            dm.Delay(1000)
+            dm.Delay(250)
             dm.LeftClick()
-            dm.Delay(1000)
+            dm.Delay(250)
             dm.MoveTo(rx + 20, ry + 20)
-            dm.Delay(random.randint(1000, 2000))
+            dm.Delay(random.randint(250, 2000))
             dm.LeftClick()
-            dm.Delay(1000)
+            dm.Delay(250)
 
 
     # Select main character tab ('1') before searching for item
@@ -175,7 +188,7 @@ def reorganize_and_consume_item(dm):
         (_, ix, iy) = dm.FindPic(0, 0, 1024, 768, 'break_inventory_item.bmp', '101010', 0.75, 0)
         if ix > 0:
             print(f'[Inventory] Item detected at ({ix}, {iy}). Moving cursor and right-clicking 1 time to consume...')
-            dm.MoveTo(ix + 5, iy + 5)
+            dm.MoveTo(ix + 2, iy + 2)
             dm.Delay(200)
             dm.RightClick()
             dm.Delay(500)
@@ -192,7 +205,7 @@ def reorganize_and_consume_item(dm):
     dm.Delay(500)
 
     # Standby for 30 seconds to 1 minutes before continuing battle
-    standby_seconds = random.randint(30, 60)
+    standby_seconds = random.randint(10, 30)
     print(f'[Standby] ⏳ Standing by for {standby_seconds // 60}m {standby_seconds % 60}s before resuming battles...')
     start_standby = time.time()
     while time.time() - start_standby < standby_seconds:
@@ -229,10 +242,6 @@ def simulate_town_activities(dm, duration_seconds=150):
         action = random.random()
         if action < 0.35:
             dm.MoveTo(random.randint(350, 680), random.randint(250, 520))
-        elif action < 0.55:
-            dm.KeyDown(18)
-            dm.KeyPress(50)
-            dm.KeyUp(18)
 
         time.sleep(min(15, max(1, remaining)))
 
@@ -559,10 +568,33 @@ def check_food(dm):
         check_food.eat_count = 0
         
     check_food.eat_count += 1
-    dm.KeyDown(18)
-    dm.KeyPress(50)
-    dm.KeyUp(18)
-    dm.Delay(100)
+
+    if check_food.eat_count % 5 == 0:
+        inv_open = False
+        for attempt in range(3):
+            (_, bx, by) = dm.FindPic(0, 0, 1024, 768, 'break_inventory_bag.bmp|bag.bmp', '101010', 0.75, 0)
+            if bx > 0:
+                inv_open = True
+                break
+            dm.KeyPress(73)  # 'i' key
+            dm.Delay(500)
+
+        if inv_open:
+            print('[Food] Inventory is open. Searching for food item...')
+            (_, fx, fy) = dm.FindPic(0, 0, 1024, 768, 'drake_food.bmp|food.bmp', '101010', 0.75, 0)
+            if fx > 0:
+                print(f'[Food] Food detected at ({fx}, {fy}). Right-clicking 5 times to consume...')
+                dm.MoveTo(fx + 5, fy + 5)
+                dm.Delay(150)
+                for _ in range(5):
+                    dm.RightClick()
+                    dm.Delay(200)
+            else:
+                print('[Food] ⚠️ Food item (drake_food.bmp) not detected in inventory.')
+
+            # Close inventory
+            dm.KeyPress(73)  # 'i' key
+            dm.Delay(400)
 
     (_, x_bread, y_bread) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
     if x_bread > 0:
@@ -765,7 +797,11 @@ def find_and_engage_monster(dm):
         find_and_engage_monster.last_dead_check = current_time
         check_dead_mercenary(dm)
 
-    (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
+    x, y = 0, 0
+    for zx1, zy1, zx2, zy2 in MONSTER_SEARCH_ZONES:
+        (_, x, y) = dm.FindPic(zx1, zy1, zx2, zy2, MONSTER_IMAGES, '050505', 0.8, 0)
+        if x > 0:
+            break
     if x <= 0:
         current_time_check = time.time()
         if current_time_check - last_monster_seen_time > 10:
@@ -1047,14 +1083,18 @@ def run_main_script():
 
                 battle_counter += 1
                 elapsed_mins = int((time.time() - scheduler.session_start_time) // 60)
-                target_mins = int(scheduler._target_duration // 60)
+                duration_str = (
+                    f'{elapsed_mins}m/{int(scheduler._target_duration // 60)}m'
+                    if scheduler._target_duration is not None
+                    else f'{elapsed_mins}m'
+                )
                 print(
                     f'Battles completed: {scheduler.current_iteration + 1}/{scheduler._target_iterations} '
-                    f'(Grinding session: {elapsed_mins}m/{target_mins}m | Batch: {battle_counter}/20)'
+                    f'(Grinding session: {duration_str} | Batch: {battle_counter}/{BATTLES_PER_BATCH_RELOG})'
                 )
 
-                if battle_counter >= 20:
-                    print('Reached 20 battles threshold. Reorganizing inventory and consuming item...')
+                if battle_counter >= BATTLES_PER_BATCH_RELOG:
+                    print(f'Reached {BATTLES_PER_BATCH_RELOG} battles threshold. Relogging...')
                     battle_counter = 0
                     time.sleep(1)
                     relogin(dm)
@@ -1069,13 +1109,15 @@ def run_main_script():
 
         def session_cooldown_handler(reason: str, iterations: int, elapsed_sec: float) -> None:
             """Triggered by SessionScheduler when rest threshold (time/iterations) is reached."""
+            nonlocal battle_counter
             handle_grinding_break_session(dm, reason=reason)
+            battle_counter = 0
             gc.collect()
 
         session_cfg = SessionConfig(
             max_iterations=(BATTLES_BEFORE_BREAK_MIN, BATTLES_BEFORE_BREAK_MAX),
             # max_iterations=(1, 1),  # For testing
-            max_duration_seconds=(HUNT_SESSION_MIN_SECONDS, HUNT_SESSION_MAX_SECONDS),
+            max_duration_seconds=None,
             cooldown_seconds=(BREAK_DURATION_MIN_SECONDS, BREAK_DURATION_MAX_SECONDS),
             loop_interval_seconds=0.15,
         )

@@ -22,11 +22,11 @@ logger = logging.getLogger("SessionScheduler")
 class SessionConfig:
     """Configuration options for a SessionScheduler."""
 
-    # Iteration limits (fixed int or (min, max) tuple for randomized batches)
-    max_iterations: Union[int, Tuple[int, int]] = (100, 150)
+    # Iteration limits (fixed int or (min, max) tuple for randomized batches, or None)
+    max_iterations: Optional[Union[int, Tuple[int, int]]] = (100, 150)
 
-    # Session duration in seconds (fixed float or (min, max) tuple for randomized duration)
-    max_duration_seconds: Union[float, Tuple[float, float]] = (60.0 * 60, 120.0 * 60)
+    # Session duration in seconds (fixed float or (min, max) tuple for randomized duration, or None)
+    max_duration_seconds: Optional[Union[float, Tuple[float, float]]] = (60.0 * 60, 120.0 * 60)
 
     # Cooldown / break duration in seconds (fixed float or (min, max) tuple)
     cooldown_seconds: Union[float, Tuple[float, float]] = (5.0 * 60, 10.0 * 60)
@@ -72,8 +72,8 @@ class SessionScheduler:
         self.session_start_time: float = 0.0
 
         # Current targets
-        self._target_iterations: int = 0
-        self._target_duration: float = 0.0
+        self._target_iterations: Optional[int] = None
+        self._target_duration: Optional[float] = None
 
     @staticmethod
     def _resolve_value(val: Union[int, float, Tuple[int, int], Tuple[float, float]]) -> float:
@@ -86,21 +86,35 @@ class SessionScheduler:
         """Initialize or reset session counters and randomize new targets."""
         self.current_iteration = 0
         self.session_start_time = time.time()
-        self._target_iterations = int(self._resolve_value(self.config.max_iterations))
-        self._target_duration = self._resolve_value(self.config.max_duration_seconds)
+        self._target_iterations = (
+            int(self._resolve_value(self.config.max_iterations))
+            if self.config.max_iterations is not None
+            else None
+        )
+        self._target_duration = (
+            float(self._resolve_value(self.config.max_duration_seconds))
+            if self.config.max_duration_seconds is not None
+            else None
+        )
         self.session_index += 1
 
+        target_parts = []
+        if self._target_iterations is not None:
+            target_parts.append(f"{self._target_iterations} iterations")
+        if self._target_duration is not None:
+            target_parts.append(f"{self._target_duration / 60:.1f} minutes")
+        target_str = " OR ".join(target_parts) if target_parts else "No limit"
+
         logger.info(
-            f"[Session #{self.session_index}] Started | Next Cooldown Target: "
-            f"{self._target_iterations} iterations OR {self._target_duration / 60:.1f} minutes"
+            f"[Session #{self.session_index}] Started | Next Cooldown Target: {target_str}"
         )
 
     def _should_trigger_cooldown(self) -> Tuple[bool, str]:
         """Check if iteration threshold or time duration has been reached."""
         elapsed = time.time() - self.session_start_time
-        if self.current_iteration >= self._target_iterations:
+        if self._target_iterations is not None and self.current_iteration >= self._target_iterations:
             return True, f"Reached iteration target ({self.current_iteration}/{self._target_iterations})"
-        if elapsed >= self._target_duration:
+        if self._target_duration is not None and elapsed >= self._target_duration:
             return True, f"Elapsed session time limit ({elapsed / 60:.1f}m / {self._target_duration / 60:.1f}m)"
         return False, ""
 
