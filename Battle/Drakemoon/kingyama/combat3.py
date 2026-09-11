@@ -1,4 +1,4 @@
-﻿# combat.py
+# combat.py
 import time
 
 def send_key(dm, key, hold_ms=35, delay_after_ms=35):
@@ -21,6 +21,7 @@ def pan_camera(dm, x, y, duration_sec):
         dm.Delay(25)
 
 def execute_skill_loop(dm):
+    # Keys: 2, 3, 4, 5, 6, 7 -> [50, 51, 52, 53, 54, 55]
     for key in [50, 51, 52, 53, 54, 55]:
         send_key(dm, key, 35, 35)
         send_key(dm, 69, 35, 35)
