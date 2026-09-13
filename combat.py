@@ -2,16 +2,16 @@
 
 import time
 
-def check_revive(dm, is_paused_func):
-    if is_paused_func():
+def check_revive(dm, is_paused_func=None):
+    if is_paused_func and is_paused_func():
         return False
-    (r, x, y) = dm.FindPic(0, 0, 1024, 768, 'revivedrake.bmp', '202020', 0.7, 0)
+    (r, x, y) = dm.FindPic(0, 0, 1024, 768, 'revivedrake.bmp', '202020', 0.8, 0)
     if x > 0:
-        print('Main character revived successfully')
+        print(f'[Revival] ⚠️ Main character revive button OK found at ({x}, {y})!')
         dm.MoveTo(x, y)
         dm.Delay(100)
         dm.LeftClick()
-        dm.Delay(200)
+        dm.Delay(300)
         return True
     return False
 

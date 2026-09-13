@@ -1,16 +1,16 @@
 # combat.py
 import time
 
-def check_revive(dm, is_paused_func):
-    if is_paused_func():
+def check_revive(dm, is_paused_func=None):
+    if is_paused_func and is_paused_func():
         return False
-    (r, x, y) = dm.FindPic(0, 0, 1024, 768, 'revivedrake.bmp', '202020', 0.7, 0)
+    (r, x, y) = dm.FindPic(0, 0, 1024, 768, 'revivedrake.bmp', '202020', 0.8, 0)
     if x > 0:
-        print('Main character revived successfully')
+        print(f'[Revival] ⚠️ Main character revive button OK found at ({x}, {y})!')
         dm.MoveTo(x, y)
         dm.Delay(100)
         dm.LeftClick()
-        dm.Delay(200)
+        dm.Delay(300)
         return True
     return False
 
@@ -107,23 +107,23 @@ def strategy_east_south(dm):
     dm.Delay(50)
     pan_camera(dm, 371, 767, 0.10)
     dm.Delay(50)
-    dm.MoveTo(850, 475)
+    dm.MoveTo(825, 525)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
 def strategy_east_west(dm):
-    pan_camera(dm, 9, 371, 0.40)
+    pan_camera(dm, 9, 371, 0.45)
     dm.MoveTo(125, 375)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
 def strategy_east_north(dm):
-    pan_camera(dm, 9, 371, 0.43)
-    dm.MoveTo(511, 341)
+    pan_camera(dm, 9, 371, 0.45)
     dm.Delay(50)
     pan_camera(dm, 625, 0, 0.15)
+    dm.Delay(50)
     dm.MoveTo(775, 200)
     dm.Delay(50)
     execute_skill_loop(dm)
@@ -133,16 +133,16 @@ def strategy_south_east(dm):
     pan_camera(dm, 487, 0, 0.40)
     dm.Delay(50)
     pan_camera(dm, 1023, 322, 0.25)
-    dm.MoveTo(580, 600)
+    dm.MoveTo(550, 600)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
 def strategy_south_west(dm):
-    pan_camera(dm, 487, 0, 0.375)
+    pan_camera(dm, 487, 0, 0.40)
     dm.Delay(50)
     pan_camera(dm, 8, 449, 0.25)
-    dm.MoveTo(500, 600)
+    dm.MoveTo(435, 600)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -155,7 +155,7 @@ def strategy_south_north(dm):
     dm.Delay(50)
 
 def strategy_west_east(dm):
-    pan_camera(dm, 1023, 352, 0.60)
+    pan_camera(dm, 1023, 352, 0.65)
     dm.Delay(50)
     dm.MoveTo(225, 425)
     dm.Delay(50)
@@ -176,7 +176,7 @@ def strategy_west_north(dm):
     pan_camera(dm, 1023, 352, 0.30)
     dm.Delay(50)
     pan_camera(dm, 250, 0, 0.28)
-    dm.MoveTo(400, 400)
+    dm.MoveTo(400, 325)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -184,15 +184,15 @@ def strategy_west_north(dm):
 def strategy_north_east(dm):
     pan_camera(dm, 480, 767, 0.35)
     pan_camera(dm, 1023, 128, 0.28)
-    dm.MoveTo(550, 301)
+    dm.MoveTo(625, 375)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
 def strategy_north_south(dm):
-    pan_camera(dm, 440, 767, 0.45)
+    pan_camera(dm, 440, 767, 0.50)
     dm.Delay(50)
-    dm.MoveTo(550, 400)
+    dm.MoveTo(480, 400)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -201,7 +201,7 @@ def strategy_north_west(dm):
     pan_camera(dm, 483, 767, 0.40)
     dm.Delay(50)
     pan_camera(dm, 0, 150, 0.25)
-    dm.MoveTo(425, 200)
+    dm.MoveTo(480, 200)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)

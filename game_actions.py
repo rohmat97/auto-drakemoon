@@ -95,12 +95,12 @@ def handle_captcha(dm, x_captcha, y_captcha):
     Handles captcha dialog:
     1. Moves cursor away so it doesn't block the characters.
     2. Waits 2 seconds.
-    3. Captures the captcha region to temp_captcha.bmp.
+    3. Captures the captcha region to temp_captcha.bmp (auto-cropped by solve_captcha).
     4. Solves the captcha code via solve_captcha().
-    5. Types the code directly (input is auto-focused).
-    6. Moves cursor to button (405, 440) and left clicks.
+    5. Types the code directly (input is auto-focused) and presses Enter.
+    6. Moves cursor to confirm button (405, 440) and left clicks.
     """
-    print(f'[Captcha Handler] Captcha dialog located at ({x_captcha}, {y_captcha}).')
+    print(f'[Captcha Handler] 2nd Captcha dialog located at ({x_captcha}, {y_captcha}).')
     # 1. Move cursor away from dialog
     dm.MoveTo(0, 0)
 
@@ -109,10 +109,11 @@ def handle_captcha(dm, x_captcha, y_captcha):
     time.sleep(2.0)
 
     # 3. Capture captcha rectangle relative to detect_captcha match
-    x1 = max(0, x_captcha + 3)
-    y1 = max(0, y_captcha - 84)
-    x2 = min(1024, x_captcha + 266)
-    y2 = min(768, y_captcha + 6)
+    # Captures an encompassing region around the dialog; solve_captcha() auto-crops to the inner box
+    x1 = max(0, x_captcha - 30)
+    y1 = max(0, y_captcha - 90)
+    x2 = min(1024, x_captcha + 300)
+    y2 = min(768, y_captcha + 160)
 
     captcha_save_path = os.path.join(dm.getPath(), 'temp_captcha.bmp')
     dm.Capture(x1, y1, x2, y2, captcha_save_path)
@@ -127,6 +128,8 @@ def handle_captcha(dm, x_captcha, y_captcha):
         for char in code:
             dm.KeyPressChar(char)
             dm.Delay(80)
+        dm.Delay(200)
+        dm.KeyPress(13)  # Enter key
     else:
         print('[Captcha Handler] Warning: No code recognized.')
 
@@ -142,39 +145,76 @@ def handle_captcha(dm, x_captcha, y_captcha):
     return True
 
 
+# ---------------------------------------------------------------------------
+# Anti-Cheat State & Routines
+# ---------------------------------------------------------------------------
+_anti_cheat_pending_relog = False
+_last_anti_cheat_sound_time = 0
+_anti_cheat_relogin_func = None
+
+
+def is_anti_cheat_pending_relog():
+    """Returns True if a post-battle relog is currently pending."""
+    return _anti_cheat_pending_relog
+
+
+def set_anti_cheat_pending_relog(pending=True, relogin_func=None):
+    """Sets or clears the pending post-battle anti-cheat relog flag."""
+    global _anti_cheat_pending_relog, _anti_cheat_relogin_func
+    _anti_cheat_pending_relog = pending
+    if relogin_func:
+        _anti_cheat_relogin_func = relogin_func
+
+
+def check_pending_anti_cheat_relog(dm, relogin_func=None):
+    """
+    Checks if a post-battle relog was flagged by anti-cheat (missing horse stamp).
+    If flagged, executes relogin after the battle finishes and resets the flag.
+    Returns True if relog was performed, False otherwise.
+    """
+    global _anti_cheat_pending_relog, _last_anti_cheat_sound_time, _anti_cheat_relogin_func
+    if _anti_cheat_pending_relog:
+        print('[Anti-Cheat] 🎯 Battle finished! 1 monster killed under anti-cheat condition.')
+        print('[Anti-Cheat] 🔄 Triggering scheduled post-battle relogin now...')
+        _anti_cheat_pending_relog = False
+        _last_anti_cheat_sound_time = 0
+        fn_relogin = relogin_func or _anti_cheat_relogin_func or relogin
+        time.sleep(1)
+        fn_relogin(dm)
+        return True
+    return False
+
+
 def check_anti_cheat(dm, relogin_func=None):
-    """Returns True if anti-cheat (horse-stamp missing or captcha dialog popup) is detected."""
-    fn_relogin = relogin_func or relogin
+    """Returns True if anti-cheat (horse-stamp missing or 2nd captcha dialog popup) is detected."""
+    global _anti_cheat_pending_relog, _last_anti_cheat_sound_time, _anti_cheat_relogin_func
+    if relogin_func:
+        _anti_cheat_relogin_func = relogin_func
 
     # 1. Check horse stamp vs bread indicator
     (_, x_horse, _) = dm.FindPic(599, 21, 650, 49, r'anti_cheat\horse.bmp', '050505', 0.8, 0)
     (_, x_bread, _) = dm.FindPic(50, 650, 93, 689, r'anti_cheat\bread.bmp', '050505', 0.8, 0)
     if x_horse <= 0 and x_bread > 0:
-        print('[Anti-Cheat] 🚨 Horse stamp missing while bread icon is visible!')
-        print('[Anti-Cheat] Playing alert sound and triggering relogin...')
-        play_alert_sound(dm)
-        fn_relogin(dm)
-        # print('[Anti-Cheat] Idling for 5 minutes...')
-        # for m in range(5, 0, -1):
-        #     print(f'[Anti-Cheat] Waiting... {m} minute(s) remaining.')
-        #     time.sleep(60)
-        # print('[Anti-Cheat] 5 minutes passed. Triggering second relogin...')
-        # fn_relogin(dm)
+        now = time.time()
+        if not _anti_cheat_pending_relog:
+            _anti_cheat_pending_relog = True
+            _last_anti_cheat_sound_time = now
+            print('[Anti-Cheat] 🚨 Horse stamp missing while bread icon is visible!')
+            print('[Anti-Cheat] 🔔 Playing alert sound. Account will kill 1 monster first, then relog after battle.')
+            play_alert_sound(dm)
+        elif now - _last_anti_cheat_sound_time > 15.0:
+            _last_anti_cheat_sound_time = now
+            print('[Anti-Cheat] 🚨 Alert sound active (missing horse stamp). Waiting to finish 1 monster battle before relog...')
+            play_alert_sound(dm)
         return True
 
-    # 2. Check captcha popup box
+    # 2. Check 2nd captcha popup box
     (_, x_captcha, y_captcha) = dm.FindPic(0, 0, 1024, 768, r'anti_cheat\detect_captcha.bmp', '050505', 0.8, 0)
     if x_captcha > 0:
-        print(f'[Anti-Cheat] 🚨 Captcha dialog detected at ({x_captcha}, {y_captcha})!')
-        print('[Anti-Cheat] Playing alert sound and triggering relogin (bypassing handle_captcha)...')
+        print(f'[Anti-Cheat] 🚨 2nd Captcha dialog detected at ({x_captcha}, {y_captcha})!')
+        print('[Anti-Cheat] Playing alert sound and solving 2nd captcha automatically...')
         play_alert_sound(dm)
-        fn_relogin(dm)
-        # print('[Anti-Cheat] Idling for 5 minutes after captcha detection...')
-        # for m in range(5, 0, -1):
-        #     print(f'[Anti-Cheat] Waiting... {m} minute(s) remaining.')
-        #     time.sleep(60)
-        # print('[Anti-Cheat] 5 minutes passed. Triggering second relogin...')
-        # fn_relogin(dm)
+        handle_captcha(dm, x_captcha, y_captcha)
         return True
 
     return False
@@ -199,6 +239,10 @@ def check_stamina(dm, pause_callback=None):
 def check_food(dm, relogin_func=None, pause_callback=None):
     """Check hunger level and consume food if needed.
     Returns True if script should pause (food exhausted)."""
+    # Check if a post-battle relog was scheduled by missing horse stamp alert
+    if check_pending_anti_cheat_relog(dm, relogin_func=relogin_func):
+        return False
+
     if not hasattr(check_food, "eat_count"):
         check_food.eat_count = 0
 
@@ -267,8 +311,9 @@ def check_food(dm, relogin_func=None, pause_callback=None):
 
 # Coordinates for mercenary sidebar: (0, 5, 55, 505), width=55, height=500
 MERCENARY_SIDEBAR_REGION = (0, 5, 55, 505)
+# Mercenary slots (slots 2 to 12; slot 1 is Main Character and handled separately)
 MERCENARY_SLOT_KEYS = {
-    1: 49,   # Key '1' (Main character)
+    # Slot 1 is Main Character (excluded from mercenary checks)
     2: 50,   # Key '2'
     3: 51,   # Key '3'
     4: 52,   # Key '4'
@@ -282,19 +327,23 @@ MERCENARY_SLOT_KEYS = {
     12: 187, # Key '='
 }
 
+REVIVE_BUTTON_IMAGES = 'revivedrake.bmp|revive.bmp'
 
-def detect_dead_mercenary_slots(dm, x1=0, y1=5, x2=55, y2=505):
+
+def detect_dead_mercenary_slots(dm, x1=0, y1=5, x2=55, y2=505, include_main_character=False):
     """
     Captures the mercenary sidebar region (0, 5, 55, 505)
-    and checks each of the 12 mercenary portrait slots.
+    and checks mercenary portrait slots (slots 2 to 12 by default).
     
     In Gersang:
+    - Slot 1 is the Main Character (excluded by default; handles death via revive popup).
+    - Slots 2 to 12 are Mercenaries.
     - As long as a mercenary is alive (has HP > 0), their red HP bar is present.
     - Even if HP is not full, as long as they are alive and not dead/grayed out, continue battle.
     - A DEAD mercenary has HP = 0, so their RED HP BAR IS COMPLETELY GONE (red_pixels < 10).
     
     Returns:
-        dead_slots: list of dead slot numbers (1-indexed: 1 to 12).
+        dead_slots: list of dead slot numbers (1-indexed: 2 to 12 by default).
     """
     # The mercenary sidebar is hidden during battle; only check on overworld
     if is_in_battle(dm):
@@ -317,7 +366,9 @@ def detect_dead_mercenary_slots(dm, x1=0, y1=5, x2=55, y2=505):
         slot_h = h / 12.0
         dead_slots = []
 
-        for i in range(12):
+        # Do not include main character (slot 0) by default; only check mercenary slots (1 to 11 -> slots 2 to 12)
+        start_index = 0 if include_main_character else 1
+        for i in range(start_index, 12):
             y_start = int(round(i * slot_h))
             y_end = int(round((i + 1) * slot_h))
             slot = img[y_start:y_end, :]
@@ -359,75 +410,104 @@ def is_mercenary_dead(dm, drake_images=None):
     if dead_slots:
         return True, dead_slots
 
-    if drake_images:
-        (_, x, _) = dm.FindPic(x1, y1, x2, y2, drake_images, '050505', 0.8, 0)
-        if x > 0:
-            return True, []
-
     return False, []
 
 
-def press_alt_1(dm):
-    """Press Alt+1 to consume quick-slot revival item (half-chicken soup)."""
-    print('[Revival] 🍗 Pressing Alt+1 to consume revival item...')
+_last_alt_1_time = 0
+
+
+def press_alt_1(dm, min_interval=3.0):
+    """
+    Press Alt+1 to consume quick-slot revival item (half-chicken soup).
+    Strictly rate-limited to avoid wasting revival items.
+    """
+    global _last_alt_1_time
+    now = time.time()
+    if now - _last_alt_1_time < min_interval:
+        print(f'[Revival] ⏳ Alt+1 cooldown active ({now - _last_alt_1_time:.1f}s < {min_interval}s). Skipping to prevent item waste.')
+        return False
+
+    print('[Revival] 🍗 Pressing Alt+1 (1 time only) to consume revival item...')
     dm.KeyDown(18)   # Alt
     dm.Delay(200)
     dm.KeyPress(49)  # '1'
     dm.Delay(200)
     dm.KeyUp(18)     # Alt
     dm.Delay(500)
+    _last_alt_1_time = time.time()
+    return True
+
+def check_main_character_revive(dm, is_paused_func=None, revive_images=REVIVE_BUTTON_IMAGES):
+    """
+    Checks if main character died and the revive/review confirmation button ('OK') is shown.
+    If found:
+    - Confirms prompt: presses Enter or clicks button OK.
+    - Transports to clinic: waits 5s for town to load.
+    - Exits town: presses Esc 2 times.
+    (Does NOT press Alt+1 - Alt+1 is preserved exclusively for dead mercenaries).
+    
+    Returns True if revival was executed, False otherwise.
+    """
+    if is_paused_func and is_paused_func():
+        return False
+
+    (r, x, y) = dm.FindPic(0, 0, 1024, 768, revive_images, '202020', 0.8, 0)
+    if x > 0:
+        print(f'[Revival] ⚠️ Main character revive button OK found at ({x}, {y})!')
+        # Press button OK
+        dm.MoveTo(x, y)
+        dm.Delay(100)
+        dm.LeftClick()
+        dm.Delay(300)
+        return True
+
+    return False
+
+
+# Alias for backward compatibility
+check_revive = check_main_character_revive
 
 
 def _perform_mercenary_revival(dm, dead_slots=None):
-    """Presses Alt+1 to revive dead mercenaries."""
+    """Presses Alt+1 once to revive dead mercenaries."""
     press_alt_1(dm)
 
 
-def check_dead_mercenary(dm, drake_images=None, max_attempts=3):
+def check_dead_mercenary(dm, drake_images=None, max_attempts=1):
     """
     Checks if any mercenary is dead. If detected:
-    Presses Alt+1 to consume revival item.
+    Presses Alt+1 exactly 1 time to revive without wasting items.
     """
+    # Check if main character died and revive prompt is open
+    if check_main_character_revive(dm):
+        return True
+
     is_dead, dead_slots = is_mercenary_dead(dm, drake_images)
     if not is_dead:
         return False
 
-    print(f'[Revival] ⚠️ Dead mercenary detected (slots: {dead_slots})! Pressing Alt+1...')
-    for attempt in range(1, max_attempts + 1):
-        press_alt_1(dm)
-        dm.Delay(600)
-        still_dead, remaining_slots = is_mercenary_dead(dm, drake_images)
-        if not still_dead:
-            print(f'[Revival] ✅ Mercenary recovered after Alt+1 (attempt {attempt}/{max_attempts})!')
-            return True
-        else:
-            print(f'[Revival] ⚠️ Still dead after Alt+1 (attempt {attempt}/{max_attempts}): {remaining_slots}. Retrying...')
-
+    print(f'[Revival] ⚠️ Dead mercenary detected (slots: {dead_slots})! Pressing Alt+1 (1 time only)...')
+    press_alt_1(dm)
+    dm.Delay(800)
     return True
 
 
-def ensure_mercenaries_recovered(dm, drake_images=None, max_attempts=3):
+def ensure_mercenaries_recovered(dm, drake_images=None, max_attempts=1):
     """
-    Ensures all mercenaries are alive and fully recovered before continuing.
-    If any mercenary is dead:
-    - Halts actions and executes revival.
-    - Loops until verified recovered or max_attempts reached.
-    Returns True if all mercenaries are confirmed alive, False if any remains dead.
+    Ensures dead mercenaries are revived.
+    Presses Alt+1 only 1 time when dead mercenaries are detected to prevent item waste.
     """
+    # First ensure main character isn't waiting on revive prompt
+    if check_main_character_revive(dm):
+        return True
+
     is_dead, dead_slots = is_mercenary_dead(dm, drake_images)
     if not is_dead:
         return True
 
-    print(f'[Revival] 🛑 Holding all actions! Dead mercenary detected: {dead_slots if dead_slots else "detected via template"}. Recovering...')
-    check_dead_mercenary(dm, drake_images=drake_images, max_attempts=max_attempts)
-
-    # Final verification
-    still_dead, remaining_slots = is_mercenary_dead(dm, drake_images)
-    if still_dead:
-        print(f'[Revival] ⛔ Mercenaries NOT recovered yet ({remaining_slots})! Actions will remain halted.')
-        return False
-
-    print('[Revival] ✅ All mercenaries confirmed recovered and alive.')
+    print(f'[Revival] ⚠️ Dead mercenary detected (slots: {dead_slots}). Consuming 1 revival item (Alt+1)...')
+    press_alt_1(dm)
+    dm.Delay(800)
     return True
 
 

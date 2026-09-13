@@ -37,7 +37,7 @@ from game_actions import (
     simulate_town_activities, travel_to_town_via_portal,
     buy_store_item_and_use, handle_grinding_break_session as base_handle_break_session,
     check_food as base_check_food, check_dead_mercenary as base_check_dead_merc,
-    handle_captcha, check_anti_cheat, check_stamina as base_check_stamina,
+    handle_captcha, check_anti_cheat, check_pending_anti_cheat_relog, check_stamina as base_check_stamina,
     play_alert_sound, check_community_popup, is_in_battle,
 )
 
@@ -433,6 +433,11 @@ def run_main_script():
             if battle_entered or is_in_battle(dm):
                 handle_battle(dm)
                 gc.collect()  # Clean up COM references and memory after battle
+
+                # Check if anti-cheat flagged a relog after finishing battle
+                if check_pending_anti_cheat_relog(dm):
+                    battle_counter = 0
+                    return True
 
                 # Check revive and food after battle
                 check_revive(dm, is_paused)

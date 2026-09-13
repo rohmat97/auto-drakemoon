@@ -36,7 +36,7 @@ from game_actions import (
     simulate_town_activities, travel_to_town_via_portal,
     buy_store_item_and_use, handle_grinding_break_session as base_handle_break_session,
     check_food as base_check_food, check_dead_mercenary as base_check_dead_merc,
-    handle_captcha, check_anti_cheat, check_stamina as base_check_stamina,
+    handle_captcha, check_anti_cheat, check_pending_anti_cheat_relog, check_stamina as base_check_stamina,
     play_alert_sound, check_community_popup, is_in_battle,
 )
 
@@ -45,6 +45,7 @@ from game_actions import (
 # ---------------------------------------------------------------------------
 MONSTER_IMAGES = '|'.join([rf'kingyama\koh{i}.bmp' for i in range(1, 43)])
 DRAKE_IMAGES = '|'.join([rf'Character\drakemoon\drake{i}.bmp' for i in range(1, 12)])
+EMERGENCY_EXIT_IMAGES = '|'.join([rf'kingyama\emergency_exit{i}.bmp' for i in range(1, 10)] + [r'kingyama\emergency_exit.bmp'])
 
 # Concentric monster search regions: search center outward to corners
 MONSTER_SEARCH_ZONES = [
@@ -57,6 +58,7 @@ MONSTER_SEARCH_ZONES = [
 # State variables
 # ---------------------------------------------------------------------------
 paused = False
+game_hwnd = 0
 last_monster_seen_time = time.time()
 no_monster_search_count = 0
 
@@ -73,7 +75,7 @@ BATTLES_BEFORE_BREAK_MIN = 120
 BATTLES_BEFORE_BREAK_MAX = 240
 
 # Battles per batch before relogging
-BATTLES_PER_BATCH_RELOG = 50
+BATTLES_PER_BATCH_RELOG = 25
 
 # Total break duration: 1 to 3 minutes (in seconds)
 BREAK_DURATION_MIN_SECONDS = 1 * 60   # 1 minutes (60s)
@@ -108,13 +110,73 @@ def check_stamina(dm):
 
 
 def handle_grinding_break_session(dm, reason=""):
-    return base_handle_break_session(
-        dm,
-        reason=reason,
-        town_activity_min=TOWN_ACTIVITY_MIN_SECONDS,
-        town_activity_max=TOWN_ACTIVITY_MAX_SECONDS,
-        travel_scroll_image='scroll_travel_kingyama.bmp',
-    )
+    # Return / going back to town disabled — relogging instead
+    # return base_handle_break_session(
+    #     dm,
+    #     reason=reason,
+    #     town_activity_min=TOWN_ACTIVITY_MIN_SECONDS,
+    #     town_activity_max=TOWN_ACTIVITY_MAX_SECONDS,
+    #     travel_scroll_image='scroll_travel_kingyama.bmp',
+    # )
+    print(f'[Break Session] 🛑 Rest break ({reason}): Town break disabled, executing relog instead...')
+    time.sleep(2)
+    return relogin(dm)
+
+
+def emergency_exit_game_and_terminal(dm):
+    """
+    Forcefully terminates both the game application window (Gersang) and the terminal.
+    Triggered when the emergency target image is detected during monster search or engagement.
+    """
+    print('\n' + '=' * 65)
+    print('🚨 [EMERGENCY EXIT] Danger target detected on screen!')
+    print('🚨 Force closing game window and terminal immediately...')
+    print('=' * 65 + '\n')
+
+    # 1. Unbind DaMo hook
+    try:
+        dm.UnBindWindow()
+    except Exception:
+        pass
+
+    # 2. Terminate the game process
+    killed = False
+    if game_hwnd:
+        try:
+            import win32process
+            _, pid = win32process.GetWindowThreadProcessId(game_hwnd)
+            if pid > 0:
+                print(f'🚨 Terminating game process (PID: {pid})...')
+                os.system(f'taskkill /F /PID {pid} /T >nul 2>&1')
+                killed = True
+        except Exception as e:
+            print(f'Error killing game by PID: {e}')
+
+    if not killed:
+        print('🚨 Terminating Gersang.exe by process name...')
+        os.system('taskkill /F /IM Gersang.exe /T >nul 2>&1')
+
+    # 3. Kill parent terminal and current Python process
+    try:
+        print('🚨 Terminating parent terminal...')
+        os.kill(os.getppid(), 9)
+    except Exception as e:
+        print(f'Error killing parent terminal: {e}')
+
+    sys.exit(0)
+
+
+def check_emergency_exit_target(dm):
+    """
+    Checks if danger target is visible on screen.
+    If detected, terminates game window and terminal immediately.
+    """
+    (_, ex, ey) = dm.FindPic(0, 0, 1024, 768, EMERGENCY_EXIT_IMAGES, '050505', 0.8, 0)
+    if ex > 0:
+        print(f'🚨 Danger target spotted at ({ex}, {ey})!')
+        emergency_exit_game_and_terminal(dm)
+        return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +192,9 @@ def find_and_engage_monster(dm):
     if not hasattr(find_and_engage_monster, "last_dead_check"):
         find_and_engage_monster.last_dead_check = 0
 
+    # Check for danger target before searching
+    check_emergency_exit_target(dm)
+
     if current_time - find_and_engage_monster.last_revive_check > 5.0:
         find_and_engage_monster.last_revive_check = current_time
         if check_revive(dm, is_paused):
@@ -140,6 +205,9 @@ def find_and_engage_monster(dm):
     if current_time - find_and_engage_monster.last_dead_check > 2.0:
         find_and_engage_monster.last_dead_check = current_time
         check_dead_mercenary(dm)
+
+    # Check for danger target before searching monster zones
+    check_emergency_exit_target(dm)
 
     x, y = 0, 0
     for zx1, zy1, zx2, zy2 in MONSTER_SEARCH_ZONES:
@@ -162,6 +230,10 @@ def find_and_engage_monster(dm):
     no_monster_search_count = 0
     last_monster_seen_time = time.time()
     print(f'Monster found at coords: ({x}, {y})')
+
+    # Check for danger target before engaging
+    check_emergency_exit_target(dm)
+
     dm.MoveTo(x, y)
     dm.Delay(150)
     dm.RightClick()
@@ -173,6 +245,8 @@ def find_and_engage_monster(dm):
 
     while time.time() - start_time < 2:
         check_anti_cheat(dm)
+        # Check for danger target during engagement attempt
+        check_emergency_exit_target(dm)
 
         if is_in_battle(dm):
             print('✅ Successfully entered battle screen')
@@ -331,13 +405,14 @@ def handle_battle(dm):
 # Main game loop
 # ---------------------------------------------------------------------------
 def run_main_script():
-    global paused
+    global paused, game_hwnd
     dm = RegDm.reg()
     ret = dm.reg(DM_REG_KEY, DM_REG_CODE)
     print('DM registration result:', ret)
     print('DM version:', dm.ver())
 
     hwnd = move_game_window(dm)
+    game_hwnd = hwnd
 
     dm_ret = bind_game_window(dm, hwnd)
     if dm_ret != 1:
@@ -423,6 +498,11 @@ def run_main_script():
                 handle_battle(dm)
                 gc.collect()  # Clean up COM references and memory after battle
 
+                # Check if anti-cheat flagged a relog after finishing battle
+                if check_pending_anti_cheat_relog(dm):
+                    battle_counter = 0
+                    return True
+
                 # Check revive and food after battle
                 check_revive(dm, is_paused)
                 if check_food(dm):
@@ -457,7 +537,10 @@ def run_main_script():
         def session_cooldown_handler(reason: str, iterations: int, elapsed_sec: float) -> None:
             """Triggered by SessionScheduler when rest threshold (time/iterations) is reached."""
             nonlocal battle_counter
-            handle_grinding_break_session(dm, reason=reason)
+            # handle_grinding_break_session(dm, reason=reason)
+            print(f'[Break Session] 🛑 Rest break triggered ({reason}). Relogging instead of going back to town...')
+            time.sleep(2)
+            relogin(dm)
             battle_counter = 0
             gc.collect()
 
