@@ -1,5 +1,6 @@
 # Drake.py — Main entrypoint and orchestrator (Fish / Ikan Tol)
 
+from Battle.Drakemoon.ikan_tol.combat import send_key
 import gc
 import os
 import sys
@@ -25,11 +26,11 @@ from config import (
     FORMATION_REGIONS, MONSTER_DIRECTION_REGIONS, MONSTER_CHECKS,
 )
 from window_manager import move_game_window, bind_game_window
-from Battle.Drakemoon.ikan_tol.combat import (
+from Battle.Drakemoon.crab_tomb.combat import (
     check_revive, has_non_black_in_region, check_formation,
     execute_battle_strategy, initial_call, initiation_battle,
+    check_small_map,
 )
-from Battle.Drakemoon.ikan_tol.combat2 import execute_battle_strategy2
 from session_scheduler import SessionScheduler, SessionConfig
 from game_actions import (
     relogin,
@@ -58,8 +59,9 @@ DIRECTION_KEYS = {
 }
 
 # Image patterns
-MONSTER_IMAGES = '|'.join([rf'crab_tomb\crab_tomb{i}.bmp' for i in range(1, 21)])
+MONSTER_IMAGES = '|'.join([rf'crab_tomb\crab_tomb{i}.bmp' for i in range(1, 26)])
 DRAKE_IMAGES = '|'.join([rf'Character\drakemoon\drake{i}.bmp' for i in range(1, 12)])
+SMALL_MAP_IMAGES = r'tomb\small_map.bmp|tomb\small_map1.bmp'
 
 # Concentric monster search regions: search center outward to corners
 MONSTER_SEARCH_ZONES = [
@@ -192,7 +194,7 @@ def find_and_engage_monster(dm) -> bool:
     attempt = 1
 
     while time.time() - start_time < 5:
-        check_anti_cheat(dm)
+        check_anti_cheat(dm, immediate_wait=False)
 
         if is_in_battle(dm):
             print('✅ Successfully entered battle screen')
@@ -219,6 +221,7 @@ def handle_battle(dm) -> None:
     """Process a single battle until it ends."""
     print('Entered battle screen')
     action_executed = False
+    is_small_map = False
     no_monster_count = 0
 
     while True:
@@ -246,10 +249,15 @@ def handle_battle(dm) -> None:
                 key_code = DIRECTION_KEYS.get(direction)
                 if key_code is not None:
                     dm.KeyDown(key_code)
-                    dm.Delay(400)
+                    dm.Delay(450)
                     dm.KeyUp(key_code)
 
                 dm.Delay(25)
+
+                # Check is small map or not
+                is_small_map = check_small_map(dm, SMALL_MAP_IMAGES)
+                print(f'Is small map: {is_small_map}')
+
                 initial_call(dm)
                 dm.Delay(25)
                 initiation_battle(dm)
@@ -269,21 +277,31 @@ def handle_battle(dm) -> None:
                     if len(found_monsters) < 2:
                         duration = 7
                     else:
-                        duration = 10
+                        duration = 8
                         break
                     time.sleep(0.25)
 
                 if found_monsters:
+                    send_key(dm, 48, 35, 35)   # 0
+                    send_key(dm, 69, 35, 35)   # E
                     print(f'Total monsters found: {len(found_monsters)} -> {found_monsters}')
                     for i, monster_dir in enumerate(found_monsters):
                         print(f'Executing strategy [{i+1}/{len(found_monsters)}] → Formation: {direction} | Monster: {monster_dir}')
-                        execute_battle_strategy(dm, direction, monster_dir)
+                        if(i == 0):
+                            execute_battle_strategy(dm, direction, monster_dir)
+                        elif(i == 1):
+                            execute_battle_strategy(dm, direction, monster_dir)
+                        else:
+                            execute_battle_strategy(dm, direction, monster_dir)
+                            # execute_battle_strategy2(dm, direction, monster_dir)
 
                         if i < len(found_monsters) - 1:
-                            wait_time = 2 if i == 0 else (duration - 7 if i == 1 else duration)
+                            wait_time = 2 if i == 0 else (0 if i == 1 else duration)
+                            # wait_time = 0 if i == 0 else (duration - 7 if i == 1 else duration)
                             wait_time = max(0, wait_time)
-                            print(f'Waiting {wait_time}s before next strategy...')
-                            time.sleep(wait_time)
+                            if wait_time > 0:
+                                print(f'Waiting {wait_time}s before next strategy...')
+                                time.sleep(wait_time)
                             select_unit_1(dm, delay_ms=100)
                         else:
                             time.sleep(duration)
@@ -398,7 +416,8 @@ def run_main_script():
                 scheduler.stop()
                 return False
 
-            check_anti_cheat(dm)
+            if check_anti_cheat(dm):
+                return False
 
             # Pre-battle check: ensure all mercenaries are alive before searching monsters
             is_dead, target_slots = is_mercenary_dead(dm, DRAKE_IMAGES)
@@ -448,6 +467,9 @@ def run_main_script():
                     battle_counter = 0
                     time.sleep(3)
                     relogin(dm)
+                else:
+                    print('Waiting 5s after battle before continuing to next battle...')
+                    time.sleep(5)
 
                 return True
 

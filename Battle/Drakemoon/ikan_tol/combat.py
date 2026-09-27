@@ -64,6 +64,24 @@ def check_formation(dm, region1, region2):
         return True
     return False
 
+WIDE_MAP_IMAGES_DEFAULT = '|'.join(
+    [rf'tomb\wide_map{i}.bmp' for i in range(1, 5)] +
+    [rf'tomb\wide_map{i}_{s}.bmp' for i in range(1, 5) for s in range(1, 4)]
+)
+
+def check_wide_map(dm, pic_names=WIDE_MAP_IMAGES_DEFAULT, sim=0.75):
+    '''
+    Check if the current battle map is a wide map by searching for wide map landmark images.
+    Returns True if found, False otherwise.
+    '''
+    (r, x, y) = dm.FindPic(0, 0, 1024, 768, pic_names, '101010', sim, 0)
+    if x > 0 and y > 0:
+        pic_list = pic_names.split('|')
+        detected_asset = pic_list[r] if 0 <= r < len(pic_list) else 'landmark'
+        print(f'[Wide Map] Detected {detected_asset} at ({x}, {y})')
+        return True
+    return False
+
 def send_key(dm, key, hold_ms=35, delay_after_ms=35):
     '''Reliably send a key press in background mode.'''
     dm.KeyDown(key)
@@ -103,24 +121,24 @@ def initiation_battle(dm):
 # Battle Strategies mapping (direction, monster_dir) -> action function
 
 def strategy_east_south(dm):
-    pan_camera(dm, 9, 371, 0.35)
+    pan_camera(dm, 9, 371, 0.4)
     dm.Delay(50)
-    pan_camera(dm, 371, 767, 0.10)
+    pan_camera(dm, 371, 767, 0.2)
     dm.Delay(50)
-    dm.MoveTo(825, 525)
+    dm.MoveTo(800, 525)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
 def strategy_east_west(dm):
-    pan_camera(dm, 9, 371, 0.45)
-    dm.MoveTo(125, 375)
+    pan_camera(dm, 9, 371, 0.4)
+    dm.MoveTo(200, 425)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
 def strategy_east_north(dm):
-    pan_camera(dm, 9, 371, 0.45)
+    pan_camera(dm, 9, 371, 0.4)
     dm.Delay(50)
     pan_camera(dm, 625, 0, 0.15)
     dm.Delay(50)
@@ -130,19 +148,19 @@ def strategy_east_north(dm):
     dm.Delay(50)
 
 def strategy_south_east(dm):
-    pan_camera(dm, 487, 0, 0.40)
+    pan_camera(dm, 487, 0, 0.425)
     dm.Delay(50)
-    pan_camera(dm, 1023, 322, 0.25)
-    dm.MoveTo(550, 600)
+    pan_camera(dm, 1023, 322, 0.35)
+    dm.MoveTo(450, 550)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
 def strategy_south_west(dm):
-    pan_camera(dm, 487, 0, 0.40)
+    pan_camera(dm, 487, 0, 0.35)
     dm.Delay(50)
     pan_camera(dm, 8, 449, 0.25)
-    dm.MoveTo(435, 600)
+    dm.MoveTo(350, 450)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -157,7 +175,7 @@ def strategy_south_north(dm):
 def strategy_west_east(dm):
     pan_camera(dm, 1023, 352, 0.65)
     dm.Delay(50)
-    dm.MoveTo(225, 425)
+    dm.MoveTo(250, 425)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -176,21 +194,21 @@ def strategy_west_north(dm):
     pan_camera(dm, 1023, 352, 0.30)
     dm.Delay(50)
     pan_camera(dm, 250, 0, 0.28)
-    dm.MoveTo(400, 325)
+    dm.MoveTo(400, 425)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
 def strategy_north_east(dm):
-    pan_camera(dm, 480, 767, 0.35)
+    pan_camera(dm, 480, 767, 0.45)
     pan_camera(dm, 1023, 128, 0.28)
-    dm.MoveTo(625, 375)
+    dm.MoveTo(475, 201)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
 def strategy_north_south(dm):
-    pan_camera(dm, 440, 767, 0.50)
+    pan_camera(dm, 440, 767, 0.525)
     dm.Delay(50)
     dm.MoveTo(480, 400)
     dm.Delay(50)

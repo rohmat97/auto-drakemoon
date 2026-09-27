@@ -19,6 +19,6 @@ def bind_game_window(dm, hwnd):
         hwnd, 'gdi', 
         'dx.mouse.position.lock.api|dx.mouse.position.lock.message|dx.mouse.clip.lock.api|dx.mouse.input.lock.api|dx.mouse.state.api|dx.mouse.api|dx.mouse.cursor', 
         'dx.keypad.input.lock.api|dx.keypad.state.api|dx.keypad.api|dx.keypad.raw.input', 
-        '', 101
+        'dx.public.active.api|dx.public.active.message|dx.public.focus.message', 101
     )
     return dm_ret
