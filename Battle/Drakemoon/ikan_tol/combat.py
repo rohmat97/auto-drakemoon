@@ -120,7 +120,7 @@ def initiation_battle(dm):
 
 # Battle Strategies mapping (direction, monster_dir) -> action function
 
-def strategy_east_south(dm):
+def strategy_east_south(dm, is_wide_map=False):
     pan_camera(dm, 9, 371, 0.4)
     dm.Delay(50)
     pan_camera(dm, 371, 767, 0.2)
@@ -130,33 +130,39 @@ def strategy_east_south(dm):
     execute_skill_loop(dm)
     dm.Delay(50)
 
-def strategy_east_west(dm):
+def strategy_east_west(dm, is_wide_map=False):
     pan_camera(dm, 9, 371, 0.4)
     dm.MoveTo(200, 425)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
-def strategy_east_north(dm):
+def strategy_east_north(dm, is_wide_map=False):
     pan_camera(dm, 9, 371, 0.4)
     dm.Delay(50)
     pan_camera(dm, 625, 0, 0.15)
     dm.Delay(50)
-    dm.MoveTo(775, 200)
+    if is_wide_map:
+        dm.MoveTo(775, 200)
+    else:
+        dm.MoveTo(825, 200)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
-def strategy_south_east(dm):
+def strategy_south_east(dm, is_wide_map=False):
     pan_camera(dm, 487, 0, 0.425)
     dm.Delay(50)
     pan_camera(dm, 1023, 322, 0.35)
-    dm.MoveTo(450, 550)
+    if is_wide_map:
+        dm.MoveTo(450, 550)
+    else:
+        dm.MoveTo(325, 640)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
-def strategy_south_west(dm):
+def strategy_south_west(dm, is_wide_map=False):
     pan_camera(dm, 487, 0, 0.35)
     dm.Delay(50)
     pan_camera(dm, 8, 449, 0.25)
@@ -165,49 +171,61 @@ def strategy_south_west(dm):
     execute_skill_loop(dm)
     dm.Delay(50)
 
-def strategy_south_north(dm):
+def strategy_south_north(dm, is_wide_map=False):
     pan_camera(dm, 487, 0, 0.60)
     dm.MoveTo(475, 450)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
-def strategy_west_east(dm):
+def strategy_west_east(dm, is_wide_map=False):
     pan_camera(dm, 1023, 352, 0.65)
     dm.Delay(50)
-    dm.MoveTo(250, 425)
+    if is_wide_map:
+        dm.MoveTo(650, 375)
+    else:
+        dm.MoveTo(250, 425)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
-def strategy_west_south(dm):
+def strategy_west_south(dm, is_wide_map=False):
     pan_camera(dm, 1023, 352, 0.35)
     dm.Delay(50)
     pan_camera(dm, 275, 767, 0.25)
     dm.Delay(50)
-    dm.MoveTo(175, 325)
+    if is_wide_map:
+        dm.MoveTo(525, 450)
+    else:
+        dm.MoveTo(125, 350)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
-def strategy_west_north(dm):
+def strategy_west_north(dm, is_wide_map=False):
     pan_camera(dm, 1023, 352, 0.30)
     dm.Delay(50)
     pan_camera(dm, 250, 0, 0.28)
-    dm.MoveTo(400, 425)
+    if is_wide_map:
+        dm.MoveTo(400, 325)
+    else:
+        dm.MoveTo(350, 325)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
-def strategy_north_east(dm):
+def strategy_north_east(dm, is_wide_map=False):
     pan_camera(dm, 480, 767, 0.45)
     pan_camera(dm, 1023, 128, 0.28)
-    dm.MoveTo(475, 201)
+    if is_wide_map:
+        dm.MoveTo(700, 300)
+    else:
+        dm.MoveTo(475, 201)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
-def strategy_north_south(dm):
+def strategy_north_south(dm, is_wide_map=False):
     pan_camera(dm, 440, 767, 0.525)
     dm.Delay(50)
     dm.MoveTo(480, 400)
@@ -215,7 +233,7 @@ def strategy_north_south(dm):
     execute_skill_loop(dm)
     dm.Delay(50)
 
-def strategy_north_west(dm):
+def strategy_north_west(dm, is_wide_map=False):
     pan_camera(dm, 483, 767, 0.40)
     dm.Delay(50)
     pan_camera(dm, 0, 150, 0.25)
@@ -224,7 +242,7 @@ def strategy_north_west(dm):
     execute_skill_loop(dm)
     dm.Delay(50)
 
-def strategy_WestSouth_NorthEast(dm):
+def strategy_WestSouth_NorthEast(dm, is_wide_map=False):
     pan_camera(dm, 1023, 0, 0.10)
     dm.Delay(50)
     dm.MoveTo(980, 50)
@@ -232,7 +250,7 @@ def strategy_WestSouth_NorthEast(dm):
     execute_skill_loop(dm)
     dm.Delay(50)
 
-def strategy_NorthEast_WestSouth(dm):
+def strategy_NorthEast_WestSouth(dm, is_wide_map=False):
     pan_camera(dm, 0, 767, 0.25)
     dm.Delay(50)
     dm.MoveTo(150, 625)
@@ -257,9 +275,9 @@ STRATEGIES = {
     ('NorthEast', 'WestSouth'): strategy_NorthEast_WestSouth,
 }
 
-def execute_battle_strategy(dm, direction, monster_dir):
+def execute_battle_strategy(dm, direction, monster_dir, is_wide_map=False):
     strategy = STRATEGIES.get((direction, monster_dir))
     if strategy:
-        strategy(dm)
+        strategy(dm, is_wide_map=is_wide_map)
         return True
     return False

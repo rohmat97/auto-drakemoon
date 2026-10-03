@@ -95,7 +95,7 @@ def handle_captcha(dm, x_captcha, y_captcha):
     3. Captures the captcha region to temp_captcha.bmp (auto-cropped by solve_captcha).
     4. Solves the captcha code via solve_captcha().
     5. Types the code directly (input is auto-focused) and presses Enter.
-    6. Moves cursor to confirm button (405, 440) and left clicks.
+    6. Finds and clicks OK button in region (359, 486, 434, 528) using ok.bmp.
     """
     print(f'[Captcha Handler] 2nd Captcha dialog located at ({x_captcha}, {y_captcha}).')
     # 1. Move cursor away from dialog
@@ -105,12 +105,9 @@ def handle_captcha(dm, x_captcha, y_captcha):
     print('[Captcha Handler] Waiting 2 seconds before solving...')
     time.sleep(2.0)
 
-    # 3. Capture captcha rectangle relative to detect_captcha match
-    # Captures an encompassing region around the dialog; solve_captcha() auto-crops to the inner box
-    x1 = max(0, x_captcha - 30)
-    y1 = max(0, y_captcha - 90)
-    x2 = min(1024, x_captcha + 300)
-    y2 = min(768, y_captcha + 160)
+    # 3. Capture captcha rectangle focused on the inner captcha card
+    # Inner captcha card containing all characters is located at (368, 274, 657, 380)
+    x1, y1, x2, y2 = 368, 274, 657, 380
 
     captcha_save_path = os.path.join(dm.getPath(), 'temp_captcha.bmp')
     dm.Capture(x1, y1, x2, y2, captcha_save_path)
@@ -132,13 +129,31 @@ def handle_captcha(dm, x_captcha, y_captcha):
 
     dm.Delay(200)
 
-    # 6. Move cursor to button position (405, 440) and left click
-    dm.MoveTo(405, 440)
+    # 6. Find and click OK button
+    # Search specified region (359, 486, 434, 528) for ok.bmp asset
+    (_, ok_x, ok_y) = dm.FindPic(359, 486, 434, 528, r'anti_cheat\ok.bmp', '050505', 0.8, 0)
+    if ok_x <= 0:
+        (_, ok_x, ok_y) = dm.FindPic(359, 486, 434, 528, r'anti_cheat\ok.bmp', '101010', 0.7, 0)
+    if ok_x <= 0:
+        # Fallback to broader bottom region
+        (_, ok_x, ok_y) = dm.FindPic(300, 450, 550, 560, r'anti_cheat\ok.bmp', '101010', 0.7, 0)
+
+    if ok_x > 0:
+        click_x = ok_x + 20  # center horizontally (asset width 42)
+        click_y = ok_y + 7   # center vertically (asset height 14)
+        print(f'[Captcha Handler] OK button found at ({ok_x}, {ok_y}), clicking center ({click_x}, {click_y})')
+    else:
+        # Fallback to center of specified box (359..434, 486..528)
+        click_x = 396
+        click_y = 507
+        print(f'[Captcha Handler] OK button asset not matched, falling back to ({click_x}, {click_y})')
+
+    dm.MoveTo(click_x, click_y)
     dm.Delay(150)
     dm.LeftClick()
     dm.Delay(1000)
 
-    print('[Captcha Handler] Moved to (405, 440) and left-clicked button successfully.')
+    print(f'[Captcha Handler] Left-clicked OK button at ({click_x}, {click_y}) successfully.')
     return True
 
 
@@ -217,33 +232,32 @@ def check_pending_anti_cheat_relog(dm, relogin_func=None):
 def check_anti_cheat(dm, relogin_func=None, immediate_wait=False):
     """
     Checks for anti-cheat indicators:
-    1. Horse stamp missing while bread icon is visible:
+    1. Anti-cheat indicator image detected:
        Flags pending relog to fight 1 more battle. Never relogs immediately,
        and never executes during battle.
     2. 2nd captcha dialog popup:
        Solves captcha automatically.
        
     Returns True ONLY if a blocking action occurred (e.g. 2nd captcha solved).
-    Returns False when flagging missing horse stamp so exploration and 1 more battle can proceed.
+    Returns False when flagging anti-cheat so exploration and 1 more battle can proceed.
     """
     global _anti_cheat_pending_relog, _last_anti_cheat_sound_time, _anti_cheat_relogin_func
     if relogin_func:
         _anti_cheat_relogin_func = relogin_func
 
-    # 1. Check horse stamp vs bread indicator
-    (_, x_horse, _) = dm.FindPic(599, 21, 650, 49, r'anti_cheat\horse.bmp', '050505', 0.8, 0)
-    (_, x_bread, _) = dm.FindPic(50, 650, 93, 689, r'anti_cheat\bread.bmp', '050505', 0.8, 0)
-    if x_horse <= 0 and x_bread > 0:
+    # 1. Check anti-cheat indicator
+    (_, x_ac, y_ac) = dm.FindPic(0, 0, 1024, 768, r'anti_cheat\anti_cheat.bmp|anti_cheat\anti_cheat_roof.bmp', '050505', 0.8, 0)
+    if x_ac > 0:
         now = time.time()
         if not _anti_cheat_pending_relog:
             _anti_cheat_pending_relog = True
             _last_anti_cheat_sound_time = now
-            print('[Anti-Cheat] 🚨 Horse stamp missing while bread icon is visible!')
+            print(f'[Anti-Cheat] 🚨 Anti-cheat detected at ({x_ac}, {y_ac})!')
             print('[Anti-Cheat] 🔔 Alert sound triggered. Will fight 1 more battle before relogging (will not relog during battle).')
             play_alert_sound(dm)
         elif now - _last_anti_cheat_sound_time > 15.0:
             _last_anti_cheat_sound_time = now
-            print('[Anti-Cheat] 🚨 Anti-cheat flagged (missing horse stamp). Waiting for 1 battle to finish before relog...')
+            print(f'[Anti-Cheat] 🚨 Anti-cheat flagged at ({x_ac}, {y_ac}). Waiting for 1 battle to finish before relog...')
             play_alert_sound(dm)
 
         # Do NOT immediately relog and do NOT halt exploration!
@@ -251,9 +265,17 @@ def check_anti_cheat(dm, relogin_func=None, immediate_wait=False):
         return False
 
     # 2. Check 2nd captcha popup box
-    (_, x_captcha, y_captcha) = dm.FindPic(0, 0, 1024, 768, r'anti_cheat\detect_captcha.bmp', '050505', 0.8, 0)
+    # Primary search in specified area (350, 415, 549, 555) for the renewal asset
+    (_, x_captcha, y_captcha) = dm.FindPic(350, 415, 549, 555, r'anti_cheat\renewal.bmp', '050505', 0.8, 0)
+    if x_captcha <= 0:
+        # Check area with slight boundary tolerance (350, 415, 600, 560)
+        (_, x_captcha, y_captcha) = dm.FindPic(350, 415, 600, 560, r'anti_cheat\renewal.bmp', '050505', 0.8, 0)
+    if x_captcha <= 0:
+        # Fallback to full screen search for renewal asset or detect_captcha template
+        (_, x_captcha, y_captcha) = dm.FindPic(0, 0, 1024, 768, r'anti_cheat\renewal.bmp|anti_cheat\detect_captcha.bmp', '050505', 0.8, 0)
+
     if x_captcha > 0:
-        print(f'[Anti-Cheat] 🚨 2nd Captcha dialog detected at ({x_captcha}, {y_captcha})!')
+        print(f'[Anti-Cheat] 🚨 2nd Captcha dialog detected (asset matched at ({x_captcha}, {y_captcha}))!')
         print('[Anti-Cheat] Playing alert sound and solving 2nd captcha automatically...')
         play_alert_sound(dm)
         handle_captcha(dm, x_captcha, y_captcha)
@@ -391,6 +413,9 @@ def detect_dead_mercenary_slots(dm, x1=0, y1=5, x2=55, y2=505, include_main_char
     if is_in_battle(dm):
         return []
 
+    # press 1 first before continue checking
+    dm.KeyPress(49)
+    dm.Delay(100)
     # Use unique filename per process to avoid multi-instance file collisions
     pid = os.getpid()
     temp_path = os.path.join(dm.getPath(), f'temp_merc_sidebar_{pid}.bmp')

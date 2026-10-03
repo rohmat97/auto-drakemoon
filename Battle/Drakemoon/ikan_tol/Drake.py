@@ -29,6 +29,7 @@ from window_manager import move_game_window, bind_game_window
 from Battle.Drakemoon.ikan_tol.combat import (
     check_revive, has_non_black_in_region, check_formation,
     execute_battle_strategy, initial_call, initiation_battle,
+    check_wide_map,
 )
 from Battle.Drakemoon.ikan_tol.combat2 import execute_battle_strategy2
 from session_scheduler import SessionScheduler, SessionConfig
@@ -398,7 +399,12 @@ def handle_battle(dm) -> None:
                 initiation_battle(dm)
                 dm.Delay(25)
 
-                # check is wide map or not
+                # Check is wide map or not
+                is_wide_map = check_wide_map(dm, 'stone_wide map.bmp')
+                if is_wide_map:
+                    print('[Wide Map] stone_wide map.bmp found -> Is wide map: True')
+                else:
+                    print('[Wide Map] stone_wide map.bmp not found -> Is wide map: False')
 
                 select_unit_1(dm, delay_ms=25)
 
@@ -426,16 +432,14 @@ def handle_battle(dm) -> None:
                     for i, monster_dir in enumerate(found_monsters):
                         print(f'Executing strategy [{i+1}/{len(found_monsters)}] → Formation: {direction} | Monster: {monster_dir}')
                         if(i == 0):
-                            execute_battle_strategy(dm, direction, monster_dir)
+                            execute_battle_strategy(dm, direction, monster_dir,is_wide_map)
                         elif(i == 1):
-                            execute_battle_strategy2(dm, direction, monster_dir)
+                            execute_battle_strategy2(dm, direction, monster_dir, is_wide_map)
                         else:
-                            execute_battle_strategy(dm, direction, monster_dir)
-                            select_unit_1(dm, delay_ms=25)
-                            execute_battle_strategy2(dm, direction, monster_dir)
+                            execute_battle_strategy2(dm, direction, monster_dir, is_wide_map)
 
                         if i < len(found_monsters) - 1:
-                            wait_time = 0 if i == 0 else (duration - 7 if i == 1 else duration)
+                            wait_time = 0 if i == 0 else (1 if i == 1 else duration)
                             wait_time = max(0, wait_time)
                             if wait_time > 0:
                                 print(f'Waiting {wait_time}s before next strategy...')

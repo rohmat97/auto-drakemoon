@@ -196,7 +196,7 @@ def find_and_engage_monster(dm) -> bool:
     current_time = time.time()
 
     # Periodic check for main character revive prompt every 5 seconds
-    if current_time - state.last_revive_check > 5.0:
+    if current_time - state.last_revive_check > 3.0:
         state.last_revive_check = current_time
         if check_revive(dm, state.is_paused):
             print('[Overworld] Main character revival sequence completed. Ready for exploration.')
