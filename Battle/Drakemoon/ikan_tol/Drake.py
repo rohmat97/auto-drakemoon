@@ -241,7 +241,7 @@ def check_food_or_stamina(dm) -> bool:
         if now - _last_stamina_eat_time > 3.0:
             status_str = f'Region {STAMINA_CHECK_REGION} is NOT green (#{STAMINA_GREEN_COLOR})' if not zero_stamina else '0 stamina icon detected'
             print(f'[Stamina] 📉 {status_str}. Eating stamina 2 times...')
-            success = eat_stamina(dm, times=8)
+            success = eat_stamina(dm, times=9)
             _last_stamina_eat_time = time.time()
 
             if not success:
@@ -400,11 +400,11 @@ def handle_battle(dm) -> None:
                 dm.Delay(25)
 
                 # Check is wide map or not
-                is_wide_map = check_wide_map(dm, 'stone_wide map.bmp')
+                is_wide_map = check_wide_map(dm)
                 if is_wide_map:
-                    print('[Wide Map] stone_wide map.bmp found -> Is wide map: True')
+                    print('[Wide Map] Is wide map: True')
                 else:
-                    print('[Wide Map] stone_wide map.bmp not found -> Is wide map: False')
+                    print('[Wide Map] Is wide map: False')
 
                 select_unit_1(dm, delay_ms=25)
 
@@ -615,8 +615,8 @@ def run_main_script():
                 #     time.sleep(3)
                 #     relogin(dm)
                 # else:
-                print('Waiting 5s after battle before continuing to next battle...')
-                time.sleep(5)
+                print('Waiting 2s after battle before continuing to next battle...')
+                time.sleep(2)
 
                 return True
 

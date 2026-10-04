@@ -65,11 +65,11 @@ def check_formation(dm, region1, region2):
     return False
 
 WIDE_MAP_IMAGES_DEFAULT = '|'.join(
-    [rf'tomb\wide_map{i}.bmp' for i in range(1, 5)] +
-    [rf'tomb\wide_map{i}_{s}.bmp' for i in range(1, 5) for s in range(1, 4)]
+    [rf'tomb\wide_map{i}.bmp' for i in range(1, 3)] +
+    [rf'tomb\wide_map{i}_{s}.bmp' for i in range(1, 3) for s in range(1, 6)]
 )
 
-def check_wide_map(dm, pic_names=WIDE_MAP_IMAGES_DEFAULT, sim=0.75):
+def check_wide_map(dm, pic_names=WIDE_MAP_IMAGES_DEFAULT, sim=0.975):
     '''
     Check if the current battle map is a wide map by searching for wide map landmark images.
     Returns True if found, False otherwise.
@@ -182,7 +182,7 @@ def strategy_west_east(dm, is_wide_map=False):
     pan_camera(dm, 1023, 352, 0.65)
     dm.Delay(50)
     if is_wide_map:
-        dm.MoveTo(650, 375)
+        dm.MoveTo(350, 375)
     else:
         dm.MoveTo(250, 425)
     dm.Delay(50)

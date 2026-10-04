@@ -413,9 +413,6 @@ def detect_dead_mercenary_slots(dm, x1=0, y1=5, x2=55, y2=505, include_main_char
     if is_in_battle(dm):
         return []
 
-    # press 1 first before continue checking
-    dm.KeyPress(49)
-    dm.Delay(100)
     # Use unique filename per process to avoid multi-instance file collisions
     pid = os.getpid()
     temp_path = os.path.join(dm.getPath(), f'temp_merc_sidebar_{pid}.bmp')
@@ -632,12 +629,11 @@ def ensure_mercenaries_recovered(dm, drake_images=None, max_attempts=2):
     if is_in_battle(dm):
         return True
 
-    # First ensure main character isn't waiting on revive prompt
-    if check_main_character_revive(dm):
-        return True
-
     is_dead, dead_slots = is_mercenary_dead(dm, drake_images)
     if not is_dead:
+        # press 1 first before continue checking
+        dm.KeyPress(49)
+        dm.Delay(100)
         return True
 
     print(f'[Revival] ⚠️ Dead mercenary detected (slots: {dead_slots}). Reviving...')
@@ -652,11 +648,6 @@ def ensure_mercenaries_recovered(dm, drake_images=None, max_attempts=2):
             print('[Revival] ✅ All mercenaries confirmed recovered and alive via Alt+1.')
             return True
         print(f'[Revival] ⚠️ Mercenaries still dead after Alt+1 attempt {attempt+1}/{max_attempts} (slots: {remaining_slots}).')
-
-    # Method 2: Inventory fallback
-    print('[Revival] 🔄 Alt+1 did not recover all mercenaries. Attempting inventory fallback...')
-    revive_mercenaries_via_inventory(dm, remaining_slots)
-    dm.Delay(800)
 
     still_dead, remaining_slots = is_mercenary_dead(dm, drake_images)
     if not still_dead:
