@@ -144,13 +144,16 @@ def strategy_east_west(dm):
     dm.Delay(50)
 
 def strategy_east_north(dm):
-    pan_camera(dm, 9, 371, 0.2)
+    # send_key(dm, 27, 35, 35)
+    # dm.Delay(200)
+    # send_key(dm, 27, 35, 35)
+    pan_camera(dm, 9, 371, 0.15)
     dm.Delay(50)
-    pan_camera(dm, 625, 0, 0.01)
+    pan_camera(dm, 625, 0, 0.1)
     dm.Delay(50)
     initiation_battle(dm)
     dm.Delay(50)
-    dm.MoveTo(500, 525)
+    dm.MoveTo(525, 550)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -160,7 +163,7 @@ def strategy_south_east(dm):
     dm.Delay(50)
     pan_camera(dm, 1023, 322, 0.15)
     dm.Delay(50)
-    dm.MoveTo(625, 425)
+    dm.MoveTo(525, 500)
     dm.Delay(50)
     initiation_battle(dm)
     dm.Delay(50)
@@ -190,7 +193,7 @@ def strategy_south_north(dm):
     dm.Delay(50)
 
 def strategy_west_east(dm):
-    pan_camera(dm, 1023, 352, 0.5)
+    pan_camera(dm, 1023, 352, 0.35)
     dm.Delay(50)
     dm.MoveTo(350, 375)
     dm.Delay(50) 
@@ -245,11 +248,11 @@ def strategy_north_south(dm):
     dm.Delay(50)
 
 def strategy_north_west(dm):
-    pan_camera(dm, 483, 767, 0.35)
+    pan_camera(dm, 483, 767, 0.25)
     dm.Delay(50)
     pan_camera(dm, 0, 150, 0.15)
     dm.Delay(50)
-    dm.MoveTo(480, 200)
+    dm.MoveTo(550, 225)
     dm.Delay(50)
     initiation_battle(dm)
     dm.Delay(50)
@@ -299,3 +302,19 @@ def execute_battle_strategy(dm, direction, monster_dir):
         strategy(dm)
         return True
     return False
+
+
+# Re-export global opposite monster detection from game_actions
+try:
+    from game_actions import (
+        check_and_execute_opposite_monster,
+        OPPOSITE_MONSTER_REGION,
+        OPPOSITE_TARGET_POSITION,
+        OPPOSITE_MONSTER_IMAGES,
+        OPPOSITE_MONSTER_REGION_2,
+        OPPOSITE_TARGET_POSITION_2,
+        OPPOSITE_MONSTER_IMAGES_2,
+    )
+except ImportError:
+    pass
+

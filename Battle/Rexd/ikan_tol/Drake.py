@@ -29,6 +29,7 @@ from window_manager import move_game_window, bind_game_window
 from Battle.Rexd.ikan_tol.combat import (
     check_revive, has_non_black_in_region, check_formation,
     execute_battle_strategy, initial_call, initiation_battle,
+    execute_skill_loop,
 )
 from Battle.Rexd.ikan_tol.combat2 import execute_battle_strategy2
 from session_scheduler import SessionScheduler, SessionConfig
@@ -42,6 +43,13 @@ from game_actions import (
     stop_battle,
     is_mercenary_dead,
     ensure_mercenaries_recovered,
+    check_and_execute_opposite_monster,
+    OPPOSITE_MONSTER_REGION,
+    OPPOSITE_TARGET_POSITION,
+    OPPOSITE_MONSTER_IMAGES,
+    OPPOSITE_MONSTER_REGION_2,
+    OPPOSITE_TARGET_POSITION_2,
+    OPPOSITE_MONSTER_IMAGES_2,
 )
 
 # ---------------------------------------------------------------------------
@@ -340,7 +348,9 @@ def find_and_engage_monster(dm) -> bool:
     attempt = 1
 
     while time.time() - start_time < 3:
-        check_anti_cheat(dm, immediate_wait=False)
+        if check_anti_cheat(dm, immediate_wait=False):
+            print('[Overworld] ⚠️ Captcha popup detected and handled. Aborting chase.')
+            return False
 
         if is_in_battle(dm):
             print('✅ Successfully entered battle screen')
@@ -358,6 +368,9 @@ def find_and_engage_monster(dm) -> bool:
 
     time.sleep(0.1)
     return False
+
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -384,7 +397,7 @@ def handle_battle(dm) -> None:
         for direction, regions in FORMATION_REGIONS.items():
             if action_executed:
                 break
-
+                
             if check_formation(dm, regions[0], regions[1]):
                 print(f'Formation position detected: {direction}')
 
@@ -417,11 +430,23 @@ def handle_battle(dm) -> None:
                     action_executed = True
                     break
                 else:
-                    print(f'No monsters found in {direction} formation')
-                    stop_battle(dm)
-                    return
+                    print(f'No monsters found in {direction} formation on minimap.')
+                    # check monster in opposite direction
+                    print('Checking monsters in opposite direction regions...')
+                    if check_and_execute_opposite_monster(dm, initiation_battle, execute_skill_loop):
+                        action_executed = True
+                        break
+                    else:
+                        print(f'No monsters found in {direction} formation or opposite direction')
+                        stop_battle(dm)
+                        return
 
         if not action_executed:
+            # check monster in opposite direction if formation detection was inconclusive
+            if check_and_execute_opposite_monster(dm, initiation_battle, execute_skill_loop):
+                action_executed = True
+                continue
+
             no_monster_count += 1
             if no_monster_count >= 15:
                 print('No monsters found 15 times. Exiting battle...')

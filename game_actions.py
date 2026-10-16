@@ -8,6 +8,7 @@ import time
 import random
 import winsound
 from tkinter import messagebox
+from collections import Counter
 
 import cv2
 import numpy as np
@@ -91,11 +92,11 @@ def handle_captcha(dm, x_captcha, y_captcha):
     """
     Handles captcha dialog:
     1. Moves cursor away so it doesn't block the characters.
-    2. Waits 2 seconds.
-    3. Captures the captcha region to temp_captcha.bmp (auto-cropped by solve_captcha).
-    4. Solves the captcha code via solve_captcha().
-    5. Types the code directly (input is auto-focused) and presses Enter.
-    6. Finds and clicks OK button in region (359, 486, 434, 528) using ok.bmp.
+    2. Waits 2 seconds for dialog rendering to stabilize.
+    3. Captures and verifies the captcha 2-3 times across frames,
+       computing majority consensus across samples for maximum accuracy.
+    4. Clears input field and types verified 5-character code.
+    5. Confirms before clicking OK, clicks OK button, and verifies dismissal.
     """
     print(f'[Captcha Handler] 2nd Captcha dialog located at ({x_captcha}, {y_captcha}).')
     # 1. Move cursor away from dialog
@@ -108,17 +109,73 @@ def handle_captcha(dm, x_captcha, y_captcha):
     # 3. Capture captcha rectangle focused on the inner captcha card
     # Inner captcha card containing all characters is located at (368, 274, 657, 380)
     x1, y1, x2, y2 = 368, 274, 657, 380
-
     captcha_save_path = os.path.join(dm.getPath(), 'temp_captcha.bmp')
-    dm.Capture(x1, y1, x2, y2, captcha_save_path)
-    dm.Delay(100)
 
-    # 4. Recognize captcha text
-    code = solve_captcha(captcha_save_path, debug=True)
-    print(f'[Captcha Handler] Solved code: "{code}"')
+    char_cleanup = {
+        '了': 'J',
+        '亅': 'J',
+        '父': 'J',
+        '工': 'I',
+        '上': 'I',
+        '口': 'O',
+        '日': 'B',
+        '一': '1',
+        '丁': 'T',
+        '下': 'T',
+        '乙': 'Z',
+        '匚': 'C',
+        '乂': 'X',
+        '&': '8',
+        '只': '8',
+        '七': '7',
+    }
 
-    # 5. Type characters into form (input is auto-focused)
+    # Verify 2-3 times across frames for maximum accuracy
+    print('[Captcha Handler] Sampling and verifying captcha 3 times across frames...')
+    samples = []
+    for sample_round in range(2):
+        dm.Capture(x1, y1, x2, y2, captcha_save_path)
+        dm.Delay(100)
+        sample_code = solve_captcha(captcha_save_path, debug=False)
+        if sample_code:
+            for k, v in char_cleanup.items():
+                sample_code = sample_code.replace(k, v)
+            sample_code = ''.join([c.upper() for c in sample_code if c.isascii() and c.isalnum()])
+            if len(sample_code) == 5:
+                samples.append(sample_code)
+                print(f'[Captcha Handler] Frame sample {sample_round + 1}/2: "{sample_code}"')
+            else:
+                print(f'[Captcha Handler] Frame sample {sample_round + 1}/2 (non-5 chars): "{sample_code}"')
+        time.sleep(0.2)
+
+    # Positional voting consensus across the 2-3 samples
+    if samples:
+        consensus_chars = []
+        for pos in range(5):
+            pos_counter = Counter([s[pos] for s in samples])
+            consensus_chars.append(pos_counter.most_common(1)[0][0])
+        code = ''.join(consensus_chars)
+        print(f'[Captcha Handler] Confirmed consensus from {len(samples)} sample(s): "{code}"')
+    else:
+        # Fallback to single detailed solve if no 5-character sample was captured
+        print('[Captcha Handler] Multi-frame samples incomplete. Performing fallback detailed solve...')
+        dm.Capture(x1, y1, x2, y2, captcha_save_path)
+        dm.Delay(100)
+        code = solve_captcha(captcha_save_path, debug=True)
+        if code:
+            for k, v in char_cleanup.items():
+                code = code.replace(k, v)
+            code = ''.join([c.upper() for c in code if c.isascii() and c.isalnum()])
+        print(f'[Captcha Handler] Fallback solved code: "{code}"')
+
+    # 4. Clear input box and type verified characters
     if code:
+        # Focus input and clear any residual/dirty text
+        for _ in range(8):
+            dm.KeyPress(8)  # Backspace
+            dm.Delay(35)
+        dm.Delay(100)
+
         for char in code:
             dm.KeyPressChar(char)
             dm.Delay(80)
@@ -127,33 +184,40 @@ def handle_captcha(dm, x_captcha, y_captcha):
     else:
         print('[Captcha Handler] Warning: No code recognized.')
 
-    dm.Delay(200)
+    dm.Delay(300)
 
-    # 6. Find and click OK button
-    # Search specified region (359, 486, 434, 528) for ok.bmp asset
-    (_, ok_x, ok_y) = dm.FindPic(359, 486, 434, 528, r'anti_cheat\ok.bmp', '050505', 0.8, 0)
-    if ok_x <= 0:
-        (_, ok_x, ok_y) = dm.FindPic(359, 486, 434, 528, r'anti_cheat\ok.bmp', '101010', 0.7, 0)
-    if ok_x <= 0:
-        # Fallback to broader bottom region
-        (_, ok_x, ok_y) = dm.FindPic(300, 450, 550, 560, r'anti_cheat\ok.bmp', '101010', 0.7, 0)
-
-    if ok_x > 0:
-        click_x = ok_x + 20  # center horizontally (asset width 42)
-        click_y = ok_y + 7   # center vertically (asset height 14)
-        print(f'[Captcha Handler] OK button found at ({ok_x}, {ok_y}), clicking center ({click_x}, {click_y})')
+    # 5. Click OK button with 2-3 validation checks
+    (_, ok_x, ok_y) = dm.FindPic(350, 450, 550, 530, r'anti_cheat\ok.bmp', '101010', 0.75, 0)
+    if ok_x >= 0:
+        click_x = ok_x + 21
+        click_y = ok_y + 7
+        print(f'[Captcha Handler] OK button matched at ({ok_x}, {ok_y}), moving to center ({click_x}, {click_y})')
     else:
-        # Fallback to center of specified box (359..434, 486..528)
-        click_x = 396
-        click_y = 507
-        print(f'[Captcha Handler] OK button asset not matched, falling back to ({click_x}, {click_y})')
+        click_x = 446
+        click_y = 482
+        print(f'[Captcha Handler] Moving cursor directly to default OK button at ({click_x}, {click_y})')
 
     dm.MoveTo(click_x, click_y)
     dm.Delay(150)
-    dm.LeftClick()
-    dm.Delay(1000)
+    for _ in range(4):
+        dm.LeftClick()
+        dm.Delay(100)
+    dm.Delay(600)
 
-    print(f'[Captcha Handler] Left-clicked OK button at ({click_x}, {click_y}) successfully.')
+    # Verify if dialog has been dismissed or needs re-click confirmation (up to 2 extra rounds)
+    for confirm_round in range(2):
+        (_, still_ok_x, still_ok_y) = dm.FindPic(350, 450, 550, 530, r'anti_cheat\ok.bmp', '101010', 0.75, 0)
+        if still_ok_x >= 0:
+            print(f'[Captcha Handler] OK button still visible (confirm attempt {confirm_round + 2}/3). Re-clicking...')
+            dm.MoveTo(click_x, click_y)
+            dm.Delay(100)
+            dm.LeftClick()
+            dm.Delay(600)
+        else:
+            print('[Captcha Handler] Captcha dialog confirmed dismissed.')
+            break
+
+    print(f'[Captcha Handler] OK button confirmed and clicked successfully.')
     return True
 
 
@@ -232,11 +296,11 @@ def check_pending_anti_cheat_relog(dm, relogin_func=None):
 def check_anti_cheat(dm, relogin_func=None, immediate_wait=False):
     """
     Checks for anti-cheat indicators:
-    1. Anti-cheat indicator image detected:
+    1. 2nd captcha dialog popup:
+       Solves captcha automatically.
+    2. Anti-cheat indicator image detected:
        Flags pending relog to fight 1 more battle. Never relogs immediately,
        and never executes during battle.
-    2. 2nd captcha dialog popup:
-       Solves captcha automatically.
        
     Returns True ONLY if a blocking action occurred (e.g. 2nd captcha solved).
     Returns False when flagging anti-cheat so exploration and 1 more battle can proceed.
@@ -245,12 +309,36 @@ def check_anti_cheat(dm, relogin_func=None, immediate_wait=False):
     if relogin_func:
         _anti_cheat_relogin_func = relogin_func
 
-    # 1. Check anti-cheat indicator
+    # 1. Check 2nd captcha popup box (Priority: modal blocking dialog)
+    # Search for detect_captcha banner in dialog header region
+    (_, x_captcha, y_captcha) = dm.FindPic(300, 150, 750, 350, r'anti_cheat\detect_captcha.bmp', '101010', 0.8, 0)
+    if x_captcha < 0:
+        # Fullscreen search for detect_captcha banner
+        (_, x_captcha, y_captcha) = dm.FindPic(0, 0, 1024, 768, r'anti_cheat\detect_captcha.bmp', '101010', 0.8, 0)
+    if x_captcha < 0:
+        # Check for OK button in captcha dialog button region (350, 450, 550, 530)
+        (_, x_ok, y_ok) = dm.FindPic(350, 450, 550, 530, r'anti_cheat\ok.bmp', '101010', 0.75, 0)
+        if x_ok >= 0:
+            x_captcha, y_captcha = x_ok, y_ok
+    if x_captcha < 0:
+        # Fallback check for renewal asset in dialog region or fullscreen
+        (_, x_captcha, y_captcha) = dm.FindPic(350, 415, 600, 560, r'anti_cheat\renewal.bmp', '101010', 0.7, 0)
+    if x_captcha < 0:
+        (_, x_captcha, y_captcha) = dm.FindPic(0, 0, 1024, 768, r'anti_cheat\renewal.bmp', '101010', 0.7, 0)
+
+    if x_captcha >= 0:
+        print(f'[Anti-Cheat] 🚨 2nd Captcha dialog detected (asset matched at ({x_captcha}, {y_captcha}))!')
+        print('[Anti-Cheat] Playing alert sound and solving 2nd captcha automatically...')
+        play_alert_sound(dm)
+        handle_captcha(dm, x_captcha, y_captcha)
+        return True
+
+    # 2. Check anti-cheat banner indicator (Non-blocking: fights 1 more battle then relogs)
     (_, x_ac, y_ac) = dm.FindPic(0, 0, 1024, 768, r'anti_cheat\anti_cheat.bmp|anti_cheat\anti_cheat_roof.bmp', '050505', 0.8, 0)
-    if x_ac > 0:
+    if x_ac >= 0:
         now = time.time()
         if not _anti_cheat_pending_relog:
-            _anti_cheat_pending_relog = True
+            # _anti_cheat_pending_relog = True
             _last_anti_cheat_sound_time = now
             print(f'[Anti-Cheat] 🚨 Anti-cheat detected at ({x_ac}, {y_ac})!')
             print('[Anti-Cheat] 🔔 Alert sound triggered. Will fight 1 more battle before relogging (will not relog during battle).')
@@ -263,23 +351,6 @@ def check_anti_cheat(dm, relogin_func=None, immediate_wait=False):
         # Do NOT immediately relog and do NOT halt exploration!
         # Return False so the bot continues to search for monster and fights 1 more battle.
         return False
-
-    # 2. Check 2nd captcha popup box
-    # Primary search in specified area (350, 415, 549, 555) for the renewal asset
-    (_, x_captcha, y_captcha) = dm.FindPic(350, 415, 549, 555, r'anti_cheat\renewal.bmp', '050505', 0.8, 0)
-    if x_captcha <= 0:
-        # Check area with slight boundary tolerance (350, 415, 600, 560)
-        (_, x_captcha, y_captcha) = dm.FindPic(350, 415, 600, 560, r'anti_cheat\renewal.bmp', '050505', 0.8, 0)
-    if x_captcha <= 0:
-        # Fallback to full screen search for renewal asset or detect_captcha template
-        (_, x_captcha, y_captcha) = dm.FindPic(0, 0, 1024, 768, r'anti_cheat\renewal.bmp|anti_cheat\detect_captcha.bmp', '050505', 0.8, 0)
-
-    if x_captcha > 0:
-        print(f'[Anti-Cheat] 🚨 2nd Captcha dialog detected (asset matched at ({x_captcha}, {y_captcha}))!')
-        print('[Anti-Cheat] Playing alert sound and solving 2nd captcha automatically...')
-        play_alert_sound(dm)
-        handle_captcha(dm, x_captcha, y_captcha)
-        return True
 
     return False
 
@@ -531,6 +602,9 @@ def press_alt_1(dm, min_interval=1.0):
     dm.Delay(150)
     dm.KeyUp(18)     # Alt
     dm.Delay(300)
+    # press 1 again
+    dm.KeyPress(49)  # '1'
+    dm.Delay(150)
     _last_alt_1_time = time.time()
     return True
 
@@ -632,8 +706,6 @@ def ensure_mercenaries_recovered(dm, drake_images=None, max_attempts=2):
     is_dead, dead_slots = is_mercenary_dead(dm, drake_images)
     if not is_dead:
         # press 1 first before continue checking
-        dm.KeyPress(49)
-        dm.Delay(100)
         return True
 
     print(f'[Revival] ⚠️ Dead mercenary detected (slots: {dead_slots}). Reviving...')
@@ -1028,3 +1100,101 @@ def handle_grinding_break_session(dm, reason="", town_activity_min=60, town_acti
     buy_store_item_and_use(dm, travel_scroll_image=travel_scroll_image)
 
     print('[Break Session] Town routine complete. Standing by for rest period...\n')
+
+
+# ---------------------------------------------------------------------------
+# Opposite Direction Monster Detection & Execution (Shared Combat Routine)
+# ---------------------------------------------------------------------------
+# Condition 1: East / North-East opposite area
+OPPOSITE_MONSTER_REGION = (546, 101, 938, 294)
+OPPOSITE_TARGET_POSITION = (961, 100)
+OPPOSITE_MONSTER_IMAGES = '|'.join(
+    [r'ikan_tol\ikan_tol.bmp'] +
+    [rf'ikan_tol\ikan_tol_{i}.bmp' for i in range(1, 5)] +
+    [rf'ikan_tol\ikan_tol_q{i}.bmp' for i in range(1, 5)]
+)
+
+# Condition 2: West / North-West opposite area
+OPPOSITE_MONSTER_REGION_2 = (183, 93, 465, 374)
+OPPOSITE_TARGET_POSITION_2 = (139, 584)
+OPPOSITE_MONSTER_IMAGES_2 = '|'.join(
+    [r'ikan_tol\ikan_tol2.bmp'] +
+    [rf'ikan_tol\ikan_tol2_{i}.bmp' for i in range(1, 5)] +
+    [rf'ikan_tol\ikan_tol2_q{i}.bmp' for i in range(1, 5)]
+)
+
+
+def _default_send_key(dm, key, hold_ms=35, delay_after_ms=35):
+    """Reliably send a key press in background mode."""
+    dm.KeyDown(key)
+    dm.Delay(hold_ms)
+    dm.KeyUp(key)
+    dm.Delay(delay_after_ms)
+
+
+def _default_initiation_battle(dm):
+    """Default preparation aura skills (Q, W)."""
+    dm.Delay(35)
+    _default_send_key(dm, 81, 35, 35)   # Q
+    _default_send_key(dm, 87, 35, 35)   # W
+    dm.Delay(35)
+
+
+def _default_execute_skill_loop(dm):
+    """Default mercenary attack skill loop."""
+    for key in [50, 51, 52, 53, 54]:
+        _default_send_key(dm, key, 35, 35)
+        _default_send_key(dm, 69, 35, 35)
+        _default_send_key(dm, 69, 35, 35)
+
+
+def check_and_execute_opposite_monster(
+    dm,
+    initiation_func=None,
+    skill_loop_func=None,
+    duration=15,
+    sim=0.8,
+) -> bool:
+    """
+    Global battle handler: checks for monsters in opposite direction regions.
+    Condition 1: Check region (546, 101, 938, 294) -> move cursor to (961, 100) -> execute battle skills.
+    Condition 2: Check region (183, 93, 465, 374) -> move cursor to (139, 584) -> execute battle skills.
+
+    Can be shared across all bots and modules. Accepts custom callbacks for character-specific skill sequences.
+    Returns True if a monster was found and attacked, False otherwise.
+    """
+    init_combat = initiation_func or _default_initiation_battle
+    exec_skills = skill_loop_func or _default_execute_skill_loop
+
+    # Condition 1: East / North-East opposite area
+    (x1, y1, x2, y2) = OPPOSITE_MONSTER_REGION
+    (r, opp_x, opp_y) = dm.FindPic(x1, y1, x2, y2, OPPOSITE_MONSTER_IMAGES, '050505', sim, 0)
+    if opp_x > 0 and opp_y > 0:
+        print(f'[Opposite Monster 1] Found monster at ({opp_x}, {opp_y}) in region {OPPOSITE_MONSTER_REGION}')
+        print(f'[Opposite Monster 1] Moving cursor to {OPPOSITE_TARGET_POSITION} and executing battle skill...')
+        dm.MoveTo(OPPOSITE_TARGET_POSITION[0], OPPOSITE_TARGET_POSITION[1])
+        dm.Delay(50)
+        init_combat(dm)
+        dm.Delay(50)
+        exec_skills(dm)
+        dm.Delay(50)
+        time.sleep(duration)
+        return True
+
+    # Condition 2: West / North-West opposite area (183, 93, 465, 374)
+    (x2_1, y2_1, x2_2, y2_2) = OPPOSITE_MONSTER_REGION_2
+    (r2, opp2_x, opp2_y) = dm.FindPic(x2_1, y2_1, x2_2, y2_2, OPPOSITE_MONSTER_IMAGES_2, '050505', sim, 0)
+    if opp2_x > 0 and opp2_y > 0:
+        print(f'[Opposite Monster 2] Found monster at ({opp2_x}, {opp2_y}) in region {OPPOSITE_MONSTER_REGION_2}')
+        print(f'[Opposite Monster 2] Moving cursor to {OPPOSITE_TARGET_POSITION_2} and executing battle skill...')
+        dm.MoveTo(OPPOSITE_TARGET_POSITION_2[0], OPPOSITE_TARGET_POSITION_2[1])
+        dm.Delay(50)
+        init_combat(dm)
+        dm.Delay(50)
+        exec_skills(dm)
+        dm.Delay(50)
+        time.sleep(duration)
+        return True
+
+    return False
+

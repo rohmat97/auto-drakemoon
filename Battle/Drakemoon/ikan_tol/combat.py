@@ -125,14 +125,22 @@ def strategy_east_south(dm, is_wide_map=False):
     dm.Delay(50)
     pan_camera(dm, 371, 767, 0.2)
     dm.Delay(50)
-    dm.MoveTo(800, 525)
+    if is_wide_map:
+        dm.MoveTo(675, 550)
+    else:
+        dm.MoveTo(800, 525)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
 def strategy_east_west(dm, is_wide_map=False):
-    pan_camera(dm, 9, 371, 0.4)
-    dm.MoveTo(200, 425)
+   
+    if is_wide_map:
+        pan_camera(dm, 9, 371, 0.5)
+        dm.MoveTo(50, 425)
+    else:
+        pan_camera(dm, 9, 371, 0.4)
+        dm.MoveTo(200, 425)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -155,7 +163,7 @@ def strategy_south_east(dm, is_wide_map=False):
     dm.Delay(50)
     pan_camera(dm, 1023, 322, 0.35)
     if is_wide_map:
-        dm.MoveTo(450, 550)
+        dm.MoveTo(625, 450)
     else:
         dm.MoveTo(325, 640)
     dm.Delay(50)
@@ -182,7 +190,7 @@ def strategy_west_east(dm, is_wide_map=False):
     pan_camera(dm, 1023, 352, 0.65)
     dm.Delay(50)
     if is_wide_map:
-        dm.MoveTo(350, 375)
+        dm.MoveTo(650, 375)
     else:
         dm.MoveTo(250, 425)
     dm.Delay(50)
@@ -191,13 +199,12 @@ def strategy_west_east(dm, is_wide_map=False):
 
 def strategy_west_south(dm, is_wide_map=False):
     pan_camera(dm, 1023, 352, 0.35)
-    dm.Delay(50)
     pan_camera(dm, 275, 767, 0.25)
     dm.Delay(50)
     if is_wide_map:
         dm.MoveTo(525, 450)
     else:
-        dm.MoveTo(125, 350)
+        dm.MoveTo(400, 475)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -228,7 +235,10 @@ def strategy_north_east(dm, is_wide_map=False):
 def strategy_north_south(dm, is_wide_map=False):
     pan_camera(dm, 440, 767, 0.525)
     dm.Delay(50)
-    dm.MoveTo(480, 400)
+    if is_wide_map:
+        dm.MoveTo(450, 650)
+    else:
+        dm.MoveTo(480, 400)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)

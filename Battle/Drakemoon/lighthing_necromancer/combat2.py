@@ -21,7 +21,7 @@ def pan_camera(dm, x, y, duration_sec):
         dm.Delay(25)
 
 def execute_skill_loop(dm):
-    for key in [55, 48]:
+    for key in [50, 51, 52, 53, 54, 55, 48]:
         send_key(dm, key, 35, 35)
         send_key(dm, 69, 35, 35)
         send_key(dm, 69, 35, 35)

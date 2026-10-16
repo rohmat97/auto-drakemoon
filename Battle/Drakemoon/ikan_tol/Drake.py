@@ -81,9 +81,9 @@ STAMINA_GREEN_COLOR = '76b936'
 STAMINA_FOOD_IMAGES = 'drake_food.bmp|food.bmp'
 
 # Grinding Session & Break Guidelines Configuration
-BATTLES_BEFORE_BREAK_MIN = 120
-BATTLES_BEFORE_BREAK_MAX = 240
-BATTLES_PER_BATCH_RELOG = 200
+BATTLES_BEFORE_BREAK_MIN = 400
+BATTLES_BEFORE_BREAK_MAX = 500
+BATTLES_PER_BATCH_RELOG = 500
 BREAK_DURATION_MIN_SECONDS = 1 * 60   # 1 minute (60s)
 BREAK_DURATION_MAX_SECONDS = 3 * 60  # 3 minutes (180s)
 
@@ -436,10 +436,13 @@ def handle_battle(dm) -> None:
                         elif(i == 1):
                             execute_battle_strategy2(dm, direction, monster_dir, is_wide_map)
                         else:
-                            execute_battle_strategy2(dm, direction, monster_dir, is_wide_map)
+                            execute_battle_strategy(dm, direction, monster_dir, is_wide_map)
 
                         if i < len(found_monsters) - 1:
-                            wait_time = 0 if i == 0 else (1 if i == 1 else duration)
+                            if is_wide_map:
+                                wait_time = 6 if i == 0 else (4 if i == 1 else duration)
+                            else:
+                                wait_time = 2 if i in (0, 1) else duration
                             wait_time = max(0, wait_time)
                             if wait_time > 0:
                                 print(f'Waiting {wait_time}s before next strategy...')
