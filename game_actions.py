@@ -57,8 +57,8 @@ def stop_battle(dm, max_wait_sec=15):
     Stops/exits the battle screen immediately by pressing Esc until back in overworld.
     Returns True if battle exited successfully, False if still in battle.
     """
-    # if not is_in_battle(dm):
-    #     return True
+    if not is_in_battle(dm):
+        return True
 
     dm.KeyPress(27)  # Esc
     dm.Delay(200)
@@ -334,11 +334,11 @@ def check_anti_cheat(dm, relogin_func=None, immediate_wait=False):
         return True
 
     # 2. Check anti-cheat banner indicator (Non-blocking: fights 1 more battle then relogs)
-    (_, x_ac, y_ac) = dm.FindPic(0, 0, 1024, 768, r'anti_cheat\anti_cheat.bmp|anti_cheat\anti_cheat_roof.bmp', '050505', 0.8, 0)
+    (_, x_ac, y_ac) = dm.FindPic(0, 0, 1024, 768, r'anti_cheat\anti_cheat.bmp|anti_cheat\anti_cheat_roof.bmp', '101010', 0.75, 0)
     if x_ac >= 0:
         now = time.time()
         if not _anti_cheat_pending_relog:
-            # _anti_cheat_pending_relog = True
+            _anti_cheat_pending_relog = True
             _last_anti_cheat_sound_time = now
             print(f'[Anti-Cheat] 🚨 Anti-cheat detected at ({x_ac}, {y_ac})!')
             print('[Anti-Cheat] 🔔 Alert sound triggered. Will fight 1 more battle before relogging (will not relog during battle).')
@@ -348,9 +348,31 @@ def check_anti_cheat(dm, relogin_func=None, immediate_wait=False):
             print(f'[Anti-Cheat] 🚨 Anti-cheat flagged at ({x_ac}, {y_ac}). Waiting for 1 battle to finish before relog...')
             play_alert_sound(dm)
 
-        # Do NOT immediately relog and do NOT halt exploration!
         # Return False so the bot continues to search for monster and fights 1 more battle.
         return False
+
+    # # 3. Check horse stamp indicator (missing horse buff on overworld)
+    # if not is_in_battle(dm):
+    #     (_, x_bread, _) = dm.FindPic(50, 650, 93, 689, r'anti_cheat\bread.bmp', '101010', 0.75, 0)
+    #     if x_bread > 0:
+    #         (_, x_horse, _) = dm.FindPic(599, 21, 650, 49, r'anti_cheat\horse.bmp', '101010', 0.75, 0)
+    #         if x_horse <= 0:
+    #             # Brief verification delay to avoid single-frame UI flicker false alarm
+    #             time.sleep(0.1)
+    #             (_, x_horse_verify, _) = dm.FindPic(599, 21, 650, 49, r'anti_cheat\horse.bmp', '101010', 0.75, 0)
+    #             if x_horse_verify <= 0:
+    #                 now = time.time()
+    #                 if not _anti_cheat_pending_relog:
+    #                     _anti_cheat_pending_relog = True
+    #                     _last_anti_cheat_sound_time = now
+    #                     print('[Anti-Cheat] 🚨 Anti-cheat detected: Horse stamp missing on overworld!')
+    #                     print('[Anti-Cheat] 🔔 Alert sound triggered. Will fight 1 more battle before relogging.')
+    #                     play_alert_sound(dm)
+    #                 elif now - _last_anti_cheat_sound_time > 15.0:
+    #                     _last_anti_cheat_sound_time = now
+    #                     print('[Anti-Cheat] 🚨 Anti-cheat flagged (missing horse stamp). Waiting for 1 battle to finish before relog...')
+    #                     play_alert_sound(dm)
+    #                 return False
 
     return False
 
@@ -1116,7 +1138,7 @@ OPPOSITE_MONSTER_IMAGES = '|'.join(
 
 # Condition 2: West / North-West opposite area
 OPPOSITE_MONSTER_REGION_2 = (183, 93, 465, 374)
-OPPOSITE_TARGET_POSITION_2 = (139, 584)
+OPPOSITE_TARGET_POSITION_2 = (50, 600)
 OPPOSITE_MONSTER_IMAGES_2 = '|'.join(
     [r'ikan_tol\ikan_tol2.bmp'] +
     [rf'ikan_tol\ikan_tol2_{i}.bmp' for i in range(1, 5)] +

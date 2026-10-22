@@ -1,23 +1,23 @@
 # Drake.py — Main entrypoint and orchestrator (Dark Gujimo Elder)
 
-from os import system
+import gc
 import os
 import sys
 import time
-import keyboard
-import winsound
-import gc
 from tkinter import messagebox
 
-# Ensure local modules (combat.py, config.py, etc.) are found first
+# ---------------------------------------------------------------------------
+# Path bootstrapping (ensure local and project modules can be imported)
+# ---------------------------------------------------------------------------
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-# Add the project root for shared modules (PyGameAuto, etc.)
 _PROJECT_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, '..', '..', '..'))
 if _PROJECT_ROOT not in sys.path:
     sys.path.append(_PROJECT_ROOT)
+
+import keyboard
 
 from PyGameAuto.Dm import RegDm
 from config import (
@@ -29,214 +29,376 @@ from Battle.Rexd.dark_gujimo.combat import (
     check_revive, has_non_black_in_region, check_formation,
     execute_battle_strategy,
 )
+from session_scheduler import SessionScheduler, SessionConfig
+from game_actions import (
+    relogin,
+    check_food as base_check_food,
+    check_anti_cheat,
+    check_pending_anti_cheat_relog,
+    check_stamina as base_check_stamina,
+    is_in_battle,
+    stop_battle,
+    is_mercenary_dead,
+    ensure_mercenaries_recovered,
+)
 
 # ---------------------------------------------------------------------------
-# Image pattern strings (kept here to avoid bloating config with long literals)
+# Constants & Key Mappings
 # ---------------------------------------------------------------------------
+KEY_ESC = 27
+KEY_ENTER = 13
+KEY_1 = 49
+
+DIRECTION_KEYS = {
+    'West': 39,   # Arrow Right
+    'East': 37,   # Arrow Left
+    'North': 40,  # Arrow Down
+    'South': 38,  # Arrow Up
+}
+
+# Image patterns
 MONSTER_IMAGES = '|'.join(
     [rf'dark_gujimo\elder{i}.bmp' for i in range(1, 12)] +
     [rf'dark_gujimo\goju{i}.bmp' for i in range(1, 12)]
 )
-DRAKE_IMAGES = '|'.join([rf'Character\nytheris\nytheris{i}.bmp' for i in range(1, 12)])
+DRAKE_IMAGES = '|'.join(
+    [rf'Character\nytheris\nytheris{i}.bmp' for i in range(1, 12)] +
+    [rf'Character\rexd{i}.bmp' for i in range(1, 12)] +
+    [rf'Character\nytheris{i}.bmp' for i in range(1, 12)]
+)
+
+# Concentric monster search regions: search center outward to corners
+MONSTER_SEARCH_ZONES = [
+    (352, 242, 672, 442),  # Zone 1: Center (immediate proximity to player)
+    (222, 162, 802, 522),  # Zone 2: Mid-range
+    (0, 0, 1024, 768),     # Zone 3: Full window (corners)
+]
+
+# Stamina / Food Bar Check Configuration
+# Position: 99, 671, 115, 679 | Color: #76b936
+STAMINA_CHECK_REGION = (99, 671, 115, 679)
+STAMINA_GREEN_COLOR = '76b936'
+STAMINA_FOOD_IMAGES = 'drake_food.bmp|food.bmp'
+
+# Grinding Session & Break Guidelines Configuration
+BATTLES_BEFORE_BREAK_MIN = 400
+BATTLES_BEFORE_BREAK_MAX = 500
+BATTLES_PER_BATCH_RELOG = 500
+BREAK_DURATION_MIN_SECONDS = 1 * 60   # 1 minute (60s)
+BREAK_DURATION_MAX_SECONDS = 3 * 60  # 3 minutes (180s)
+
 
 # ---------------------------------------------------------------------------
-# Pause state  (shared via closure / global)
+# State Management
 # ---------------------------------------------------------------------------
-paused = False
-anti_cheat_detected = False
-last_monster_seen_time = time.time()
-no_monster_search_count = 0
+class BotState:
+    """Encapsulates runtime state for the automation bot."""
+
+    def __init__(self):
+        self.paused = False
+        self.last_monster_seen_time = time.time()
+        self.no_monster_search_count = 0
+        self.last_revive_check = 0.0
+        # Performance & throttling caches
+        self.last_stamina_check = 0.0
+        self.last_anti_cheat_check = 0.0
+        self.last_mercenary_check = 0.0
+        self.cached_mercenary_status = (False, [])
+
+    def is_paused(self) -> bool:
+        return self.paused
+
+    def pause(self) -> None:
+        self.paused = True
+
+    def resume(self) -> None:
+        self.paused = False
+
+    def toggle_pause(self) -> bool:
+        self.paused = not self.paused
+        return self.paused
+
+    def invalidate_mercenary_cache(self) -> None:
+        """Force the next mercenary health check to query the screen directly."""
+        self.last_mercenary_check = 0.0
+        self.cached_mercenary_status = (False, [])
 
 
-def is_paused():
-    return paused
+state = BotState()
 
 
 # ---------------------------------------------------------------------------
-# Overworld helpers
+# Helper Routines
 # ---------------------------------------------------------------------------
-def relogin(dm):
-    """Press Esc to open System Menu, then click 'Char Select'."""
-    print('Relogin: Opening System Menu...')
-    dm.KeyPress(27)  # Esc to open System Menu
-    dm.Delay(500)
-    dm.MoveTo(509, 290)
-    dm.Delay(500)
-    dm.LeftClick()
-    dm.Delay(500)
-    dm.KeyPress(13)
-    dm.Delay(3000)
-    dm.KeyPress(13)
-    dm.Delay(500)
+def select_unit_1(dm, delay_ms: int = 25) -> None:
+    """Press '1' twice to select the primary mercenary group."""
+    dm.KeyPress(KEY_1)
+    dm.Delay(delay_ms)
+    dm.KeyPress(KEY_1)
+    dm.Delay(delay_ms)
+
+
+_last_stamina_eat_time = 0.0
+
+
+def is_stamina_green(dm) -> bool:
+    """
+    Checks if region (99, 671, 115, 679) contains green color #76b936.
+    Returns True if green is present, False if not green.
+    """
+    x1, y1, x2, y2 = STAMINA_CHECK_REGION
+    # 1. DaMo native FindColor for 76b936 with color tolerance
+    (_, fx, _) = dm.FindColor(x1, y1, x2, y2, f'{STAMINA_GREEN_COLOR}-202020', 0.8, 0)
+    if fx > 0:
+        return True
+
+    # 2. Pixel sampling check in region (99, 671, 115, 679)
+    get_color = dm.GetColor
+    for px in range(x1, x2 + 1, 2):
+        for py in (671, 678, 674, 675):
+            c = get_color(px, py)
+            if c:
+                try:
+                    r = int(c[0:2], 16)
+                    g = int(c[2:4], 16)
+                    b = int(c[4:6], 16)
+                    if abs(r - 0x76) <= 35 and abs(g - 0xb9) <= 40 and abs(b - 0x36) <= 30:
+                        return True
+                    if g >= 85 and g > r + 15 and g > b + 20:
+                        return True
+                except ValueError:
+                    pass
+
+    return False
+
+
+def eat_stamina(dm, times: int = 2) -> bool:
+    """
+    Consumes stamina/food by opening inventory ('i'), searching for
+    food item (drake_food.bmp / food.bmp), right-clicking it `times` times,
+    and then closing inventory ('i').
+    Returns True if successfully eaten, False if food item not found.
+    """
+    print(f'[Stamina] 🍱 Consuming stamina/food {times} times via inventory...')
+    inv_open = False
+    for _ in range(5):
+        (_, bx, by) = dm.FindPic(0, 0, 1024, 768, 'break_inventory_bag.bmp|bag.bmp', '101010', 0.75, 0)
+        if bx > 0:
+            inv_open = True
+            break
+        dm.KeyPress(73)  # 'i' key
+        dm.Delay(500)
+
+    if not inv_open:
+        print('[Stamina] ⚠️ Failed to open inventory!')
+        return False
+
+    print('[Stamina] Inventory opened. Searching for food item (drake_food.bmp / food.bmp)...')
+    (_, fx, fy) = dm.FindPic(0, 0, 1024, 768, STAMINA_FOOD_IMAGES, '101010', 0.75, 0)
+    if fx > 0:
+        print(f'[Stamina] Food item detected at ({fx}, {fy}). Right-clicking {times} times...')
+        dm.MoveTo(fx + 5, fy + 5)
+        dm.Delay(150)
+        for _ in range(times):
+            dm.RightClick()
+            dm.Delay(250)
+        # Close inventory
+        dm.KeyPress(73)  # 'i' key
+        dm.Delay(400)
+        print(f'[Stamina] ✅ Successfully consumed stamina item {times} times.')
+        return True
+    else:
+        print(f'[Stamina] ⚠️ Food item ({STAMINA_FOOD_IMAGES}) not detected in inventory!')
+        # Close inventory
+        dm.KeyPress(73)  # 'i' key
+        dm.Delay(400)
+        return False
+
+
+def check_food_or_stamina(dm) -> bool:
+    """
+    Checks if region (99, 671, 115, 679) is not green #76b936.
+    If not green (or 0 stamina):
+        Consumes stamina item 2 times via inventory.
+    Also handles empty food dialog popup.
+    Returns True if script should pause (food exhausted / stamina depleted), False otherwise.
+    """
+    global _last_stamina_eat_time
+
+    # Do not perform inventory operations if currently in battle
+    if is_in_battle(dm):
+        return False
+
+    # Check for empty food popup
+    (_, x_empty, _) = dm.FindPic(450, 350, 680, 480, 'emptyfoodinter.bmp|emptyfooddrake.bmp', '050505', 0.8, 0)
+    if x_empty > 0:
+        print('[Stamina] ⚠️ Empty food popup detected! Pausing script...')
+        state.pause()
+        dm.UnBindWindow()
+        messagebox.showwarning('Food Depleted', 'Food/Satiety depleted! Script paused.')
+        return True
+
+    # Check zero-stamina icon (nostamina.bmp)
+    (_, x_no_stamina, _) = dm.FindPic(90, 695, 99, 703, 'nostamina.bmp', '050505', 1, 0)
+    zero_stamina = (x_no_stamina >= 0)
+
+    # Check if region (99, 671, 115, 679) contains green #76b936
+    green_present = is_stamina_green(dm)
+
+    if not green_present or zero_stamina:
+        now = time.time()
+        # Cooldown of 3 seconds to avoid consecutive rapid inventory toggles
+        if now - _last_stamina_eat_time > 3.0:
+            status_str = f'Region {STAMINA_CHECK_REGION} is NOT green (#{STAMINA_GREEN_COLOR})' if not zero_stamina else '0 stamina icon detected'
+            print(f'[Stamina] 📉 {status_str}. Eating stamina 2 times...')
+            success = eat_stamina(dm, times=9)
+            _last_stamina_eat_time = time.time()
+
+            if not success:
+                print('[Stamina] ⛔ Food item missing from inventory! Pausing script...')
+                state.pause()
+                dm.UnBindWindow()
+                messagebox.showwarning('No Food', 'Stamina depleted and food item not found in inventory! Pausing...')
+                return True
+            else:
+                # Allow HUD to update and verify new state
+                time.sleep(0.5)
+                if is_stamina_green(dm):
+                    print(f'[Stamina] 📈 Replenished! Green color #{STAMINA_GREEN_COLOR} restored at {STAMINA_CHECK_REGION}.')
+                return False
+
+    return False
 
 
 def check_food(dm):
-    """Check hunger level and consume food if needed.
-    Returns True if script should pause (food exhausted)."""
-    global paused
-    if not hasattr(check_food, "eat_count"):
-        check_food.eat_count = 0
-        
-    check_food.eat_count += 1
-    if (check_food.eat_count % 2 == 0):
-        dm.KeyDown(18)
-        dm.KeyPress(50)
-        dm.KeyUp(18)
-        dm.Delay(100)
-
-    (_, x_bread, y_bread) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
-    if x_bread > 0:
-        print('Replenishing satiety')
-        print('Replenished satiety 500 times, pausing script... ' + str(check_food.eat_count) + '/500')
-        if check_food.eat_count >= 800:
-            relogin(dm)
-            check_food.eat_count = 0
-            paused = True
-            print('All commands paused, press delete to resume...')
-            dm.UnBindWindow()
-            return True
-
-    (_, x_empty, y_empty) = dm.FindPic(582, 418, 617, 446, 'emptyfooddrake.bmp', '050505', 0.8, 0)
-    if x_empty > 0:
-        print('Satiety depleted, script paused')
-        check_food.eat_count = 0
-        paused = True
-        print('All commands paused, press delete to resume...')
-        dm.UnBindWindow()
-        return True
-    return False
-
-
-def check_dead_mercenary(dm):
-    """If a dead mercenary is detected, consume half-chicken soup."""
-    (_, x, _) = dm.FindPic(0, 0, 110, 650, DRAKE_IMAGES, '050505', 0.8, 0)
-    if x > 0:
-        print('Dead mercenary detected, opening inventory to revive...')
-        # Press 'i' to open inventory
-        dm.KeyPress(73)
-        dm.Delay(500)
-        
-        # Save a debug screen capture of what DaMo actually sees
-        debug_path = os.path.join(dm.getPath(), 'debug_inventory.bmp')
-        dm.Capture(0, 0, 1024, 768, debug_path)
-        print(f"Debug screen capture saved to: {debug_path}")
-        
-        # Search for revival.bmp in main character's inventory first
-        (_, rx_main, ry_main) = dm.FindPic(0, 0, 1024, 768, 'revival.bmp', '101010', 0.7, 0)
-        print(f"Before selection loop -> Found revival.bmp at: ({rx_main}, {ry_main})")
-        
-        # Select and revive each mercenary from 2 to 12: 2, 3, 4, 5, 6, 7, 8, 9, 0, -, =
-        keys = [50, 51, 52, 53, 54, 55, 56, 57, 48, 189, 187]
-        for key in keys:
-            dm.KeyPress(key)
-            dm.Delay(100)  # Increased delay to allow inventory UI to load
-            dm.MoveTo(600,150)
-            dm.Delay(100)
-            dm.RightClick()
-            dm.Delay(100)
-        
-        # Press 'i' again to close inventory
-        dm.KeyPress(73)
-        dm.Delay(500)
-
-
-def check_anti_cheat(dm):
-    """Returns True if the anti-cheat horse-stamp is detected."""
-    (_, x_horse, _) = dm.FindPic(599, 21, 650, 49, r'anti_cheat\horse.bmp', '050505', 0.8, 0)
-    (_, x_bread, _) = dm.FindPic(50, 650, 93, 689, r'anti_cheat\bread.bmp', '050505', 0.8, 0)
-    if x_horse <= 0 and x_bread > 0:
-        return True
-    return False
+    """Check food/stamina bar and consume food if needed, pausing if food is exhausted."""
+    return check_food_or_stamina(dm)
 
 
 def check_stamina(dm):
-    """Check for the no stamina indicator. Pauses, unbinds, and shows popup if detected."""
-    global paused
-    (_, x_no_stamina, _) = dm.FindPic(90, 695, 99, 703, 'nostamina.bmp', '050505', 1, 0)
-    if x_no_stamina >= 0:
-        print('No stamina detected, pausing...')
-        paused = True
-        dm.UnBindWindow()
-        messagebox.showinfo('No Stamina', 'No stamina detected, pausing...')
-        return True
-    return False
+    """Check food/stamina bar and consume food if needed, pausing if food is exhausted."""
+    return check_food_or_stamina(dm)
 
 
-def play_alert_sound(dm):
-    """Play an alert sound when anti-cheat is triggered."""
-    try:
-        sound_path = os.path.join(dm.getPath(), 'whatsapp.wav')
-        if os.path.exists(sound_path):
-            winsound.PlaySound(sound_path, winsound.SND_FILENAME)
-    except Exception:
-        pass
+def check_mercenary_dead_cached(dm, max_age: float = 0.6) -> tuple:
+    """
+    Checks mercenary status with a short-lived cache (default 0.6s).
+    Drastically reduces disk I/O, cv2 image decodes, and numpy calculations
+    when multiple routines inspect mercenary health in the same tick.
+    """
+    now = time.time()
+    if now - state.last_mercenary_check < max_age:
+        return state.cached_mercenary_status
+    status = is_mercenary_dead(dm, DRAKE_IMAGES)
+    state.last_mercenary_check = now
+    state.cached_mercenary_status = status
+    return status
 
 
-def is_in_battle(dm):
-    (_, x, _) = dm.FindPic(959, 666, 1016, 747, 'battle.bmp', '050505', 0.8, 0)
-    return x > 0
+def check_anti_cheat_throttled(dm, interval: float = 1.0, **kwargs) -> bool:
+    """
+    Throttles anti-cheat checking during overworld roaming or wait loops.
+    Avoids running multiple fullscreen FindPic scans on every 150ms tick
+    while maintaining sub-second detection latency.
+    """
+    now = time.time()
+    if now - state.last_anti_cheat_check < interval:
+        return False
+    state.last_anti_cheat_check = now
+    return check_anti_cheat(dm, **kwargs)
+
+
+def check_stamina_throttled(dm, interval: float = 1.5) -> bool:
+    """
+    Throttles stamina checks to avoid repeatedly testing colors and popups every 150ms.
+    Stamina depletes over several minutes, so a 1.5s interval is completely safe and responsive.
+    """
+    now = time.time()
+    if now - state.last_stamina_check < interval:
+        return False
+    state.last_stamina_check = now
+    return check_food_or_stamina(dm)
 
 
 # ---------------------------------------------------------------------------
 # Overworld: find and engage a monster
 # ---------------------------------------------------------------------------
-def find_and_engage_monster(dm):
-    global last_monster_seen_time, anti_cheat_detected, no_monster_search_count
-    """Search for a monster on the overworld and attempt to enter battle.
-    Returns True if battle was entered, False otherwise."""
+def find_and_engage_monster(dm) -> bool:
+    """
+    Search for a monster on the overworld and attempt to enter battle.
+    Returns True if battle was entered, False otherwise.
+    """
     current_time = time.time()
-    if not hasattr(find_and_engage_monster, "last_revive_check"):
-        find_and_engage_monster.last_revive_check = 0
-    if not hasattr(find_and_engage_monster, "last_dead_check"):
-        find_and_engage_monster.last_dead_check = 0
 
-    if current_time - find_and_engage_monster.last_revive_check > 5.0:
-        find_and_engage_monster.last_revive_check = current_time
-        if check_revive(dm, is_paused):
-            print('Waiting for town to load after reviving main character...')
-            time.sleep(5)  # Wait for the loading screen to pass
+    # Periodic check for main character revive prompt every 5 seconds
+    if current_time - state.last_revive_check > 5.0:
+        state.last_revive_check = current_time
+        if check_revive(dm, state.is_paused):
+            print('[Overworld] Main character revival sequence completed. Ready for exploration.')
+            state.invalidate_mercenary_cache()
             return False
-        
-    if current_time - find_and_engage_monster.last_dead_check > 5.0:
-        find_and_engage_monster.last_dead_check = current_time
-        check_dead_mercenary(dm)
 
-    (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
-    if x <= 0:
-        current_time_check = time.time()
-        if current_time_check - last_monster_seen_time > 2.5:
-            no_monster_search_count += 1
-            print(f'[Active] Searching for monsters on overworld... ({no_monster_search_count}/5)')
-            last_monster_seen_time = current_time_check
-            if no_monster_search_count >= 5:
-                print('No monsters found 5 times, pressing ESC to dismiss any popups...')
-                dm.KeyPress(27)
-                dm.Delay(300)
-                no_monster_search_count = 0
+    # Check if any mercenary is dead before searching monsters (uses short-lived cache)
+    is_dead, dead_slots = check_mercenary_dead_cached(dm, max_age=0.6)
+    if is_dead:
+        print(f'[Overworld] ⚠️ Dead mercenary detected ({dead_slots})! Halting monster search to revive first...')
+        if not ensure_mercenaries_recovered(dm, DRAKE_IMAGES):
+            print('[Overworld] ⛔ Dead mercenary could not be recovered yet! Standing by...')
+        state.invalidate_mercenary_cache()
         return False
 
-    no_monster_search_count = 0
-    last_monster_seen_time = time.time()
+    # Search concentric zones from center outward
+    x, y = 0, 0
+    for zx1, zy1, zx2, zy2 in MONSTER_SEARCH_ZONES:
+        (_, x, y) = dm.FindPic(zx1, zy1, zx2, zy2, MONSTER_IMAGES, '050505', 0.8, 0)
+        if x > 0:
+            break
+
+    if x <= 0:
+        if current_time - state.last_monster_seen_time > 5:
+            state.no_monster_search_count += 1
+            print(f'[Active] Searching for monsters on overworld... ({state.no_monster_search_count}/10)')
+            state.last_monster_seen_time = current_time
+            if state.no_monster_search_count >= 10:
+                print('No monsters found 10 times, pressing ESC to dismiss any popups...')
+                dm.KeyPress(KEY_ESC)
+                dm.Delay(300)
+                state.no_monster_search_count = 0
+        time.sleep(0.04)  # Small yield to prevent 100% CPU core spinning while roaming
+        return False
+
+    state.no_monster_search_count = 0
+    state.last_monster_seen_time = time.time()
     print(f'Monster found at coords: ({x}, {y})')
+
+    # Ensure all mercenaries are alive before moving/clicking (uses short-lived cache)
+    is_dead, dead_slots = check_mercenary_dead_cached(dm, max_age=0.6)
+    if is_dead:
+        print(f'[Overworld] ⚠️ Monster found, but dead mercenary detected ({dead_slots})! Aborting chase to revive first...')
+        ensure_mercenaries_recovered(dm, DRAKE_IMAGES)
+        state.invalidate_mercenary_cache()
+        return False
+
+    # Engage monster
     dm.MoveTo(x, y)
     dm.Delay(150)
     dm.RightClick()
     dm.Delay(300)
 
-    print('Waiting to enter battle screen... (max 3s)')
+    print('Waiting to enter battle screen... (max 5s)')
     start_time = time.time()
     attempt = 1
 
-    while time.time() - start_time < 2:
-        if check_anti_cheat(dm):
-            print('Anti-cheat (horse stamp) detected, will exit after current battle finishes')
-            anti_cheat_detected = True
+    while time.time() - start_time < 3:
+        if check_anti_cheat_throttled(dm, interval=1.0, immediate_wait=False):
+            return False
 
         if is_in_battle(dm):
             print('✅ Successfully entered battle screen')
+            state.invalidate_mercenary_cache()
             return True
 
-        if time.time() - start_time > 0.5 and attempt == 1:
+        if time.time() - start_time > 2.5 and attempt == 1:
             print('Battle not entered, right-clicking monster again...')
             dm.MoveTo(x, y)
             dm.Delay(100)
@@ -249,198 +411,281 @@ def find_and_engage_monster(dm):
     time.sleep(0.1)
     return False
 
+
 # ---------------------------------------------------------------------------
 # Battle phase: detect formation and execute strategy
 # ---------------------------------------------------------------------------
-def handle_battle(dm):
+def handle_battle(dm) -> None:
     """Process a single battle until it ends."""
     print('Entered battle screen')
     action_executed = False
     no_monster_count = 0
 
     while True:
-        if paused:
+        if state.is_paused():
             time.sleep(1)
             continue
 
         if action_executed:
-            # Wait/Press Esc until battle screen actually ends
             print('Waiting for battle screen to close...')
-            while is_in_battle(dm):
-                print('Still in battle field, pressing Esc to exit...')
-                for _ in range(2):
-                    dm.KeyPress(27)
-                    dm.Delay(20)
-                time.sleep(2)
-                
-            
+            stop_battle(dm, max_wait_sec=15)
             print('Battle screen ended')
-            check_revive(dm, is_paused)
-            check_dead_mercenary(dm)
             break
-           
+
+        # Check formations and execute corresponding strategy
+        for direction, regions in FORMATION_REGIONS.items():
+            if action_executed:
+                break
+
+            if check_formation(dm, regions[0], regions[1]):
+                print(f'Formation position detected: {direction}')
+                time.sleep(0.1)
+
+                select_unit_1(dm, delay_ms=25)
+
+                found_monsters = []
+                duration = 0
+                print(f'Scanning {direction} formation for monsters...')
+                for _ in range(10):
+                    for monster_dir in MONSTER_CHECKS.get(direction, []):
+                        if monster_dir not in found_monsters:
+                            (x1, y1, x2, y2) = MONSTER_DIRECTION_REGIONS[monster_dir]
+                            if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
+                                found_monsters.append(monster_dir)
+
+                    if len(found_monsters) < 2:
+                        duration = 12
+                    else:
+                        duration = 10
+                        break
+                    time.sleep(0.25)
+
+                if found_monsters:
+                    print(f'Total monsters found: {len(found_monsters)} -> {found_monsters}')
+                    for i, monster_dir in enumerate(found_monsters):
+                        if not is_in_battle(dm):
+                            print(f'[Battle] Battle finished before executing strategy [{i+1}/{len(found_monsters)}] ({monster_dir}). Stopping.')
+                            break
+                        print(f'Executing strategy [{i+1}/{len(found_monsters)}] → Formation: {direction} | Monster: {monster_dir}')
+                        execute_battle_strategy(dm, direction, monster_dir)
+
+                        if i < len(found_monsters) - 1:
+                            wait_time = 2 if i in (0, 1) else duration
+                            wait_time = max(0, wait_time)
+                            if wait_time > 0:
+                                print(f'Waiting {wait_time}s before next strategy...')
+                                time.sleep(wait_time)
+                            select_unit_1(dm, delay_ms=100)
+                        else:
+                            wait_end = time.time() + duration
+                            while time.time() < wait_end:
+                                if not is_in_battle(dm):
+                                    break
+                                time.sleep(0.15)
+
+                    action_executed = True
+                    break
 
         if not action_executed:
-            for direction, regions in FORMATION_REGIONS.items():
-                if action_executed:
-                    break
-                    return
-                if check_formation(dm, regions[0], regions[1]):
-                    print(f'Formation position detected: {direction}')
-                    time.sleep(0.1)
-
-                    for monster_dir in MONSTER_CHECKS[direction]:
-                        (x1, y1, x2, y2) = MONSTER_DIRECTION_REGIONS[monster_dir]
-                        if has_non_black_in_region(dm, x1, y1, x2, y2, monster_dir):
-                            print(f'Executing strategy → Formation: {direction} | Monster: {monster_dir}')
-                            execute_battle_strategy(dm, direction, monster_dir)
-                            time.sleep(15)
-                            action_executed = True
-                            break
-
             no_monster_count += 1
             if no_monster_count >= 20:
-                print('No monsters found 20 times. Exiting battle by pressing Esc 2 times...')
-                dm.KeyPress(27)
-                dm.Delay(100)
-                dm.KeyPress(27)
-                dm.Delay(100)
+                print('No monsters found 20 times. Exiting battle...')
                 time.sleep(2)
                 no_monster_count = 0
             else:
-                time.sleep(0.1)
+                time.sleep(0.25)
 
         # Check if battle ended
         if not is_in_battle(dm):
-            action_executed = True
             print('Battle screen ended')
-            if check_revive(dm, is_paused):
-                print('Waiting for town to load after reviving main character...')
-                time.sleep(5)
-            else:
-                check_dead_mercenary(dm)
             break
         else:
             time.sleep(0.15)
 
+
 # ---------------------------------------------------------------------------
-# Main game loop
+# Hotkeys Setup
+# ---------------------------------------------------------------------------
+def setup_hotkeys(dm, hwnd) -> None:
+    """Registers global hotkeys for pause/resume (F10 / Delete) and restart (Page Down / Page Up)."""
+    last_toggle_time = 0.0
+
+    def on_pause_press(event=None):
+        nonlocal last_toggle_time
+        current_time = time.time()
+        if current_time - last_toggle_time < 0.3:
+            return
+        if event.name in ('f10', 'delete'):
+            last_toggle_time = current_time
+            is_now_paused = state.toggle_pause()
+            if is_now_paused:
+                print('All commands paused, press F10 or Delete to resume...')
+                dm.UnBindWindow()
+            else:
+                print('All commands resumed...')
+                bind_game_window(dm, hwnd)
+
+    def on_restart_press(event=None):
+        nonlocal last_toggle_time
+        current_time = time.time()
+        if current_time - last_toggle_time < 0.3:
+            return
+        if event.name in ('page down', 'page up'):
+            last_toggle_time = current_time
+            print(f'{event.name} pressed: restarting run.bat and closing current terminal...')
+            try:
+                dm.UnBindWindow()
+            except Exception:
+                pass
+            try:
+                bat_path = os.path.join(_SCRIPT_DIR, 'run.bat')
+                os.startfile(bat_path)
+            except Exception as e:
+                print(f'Error starting run.bat: {e}')
+            try:
+                os.kill(os.getppid(), 9)
+            except Exception as e:
+                print(f'Error killing parent terminal: {e}')
+            sys.exit(0)
+
+    keyboard.on_press_key('f10', on_pause_press)
+    keyboard.on_press_key('delete', on_pause_press)
+    keyboard.on_press_key('page down', on_restart_press)
+    keyboard.on_press_key('page up', on_restart_press)
+
+
+# ---------------------------------------------------------------------------
+# Main Orchestrator Loop
 # ---------------------------------------------------------------------------
 def run_main_script():
-    global paused
+    """Initializes DM, binds game window, and starts the session scheduler."""
     dm = RegDm.reg()
     ret = dm.reg(DM_REG_KEY, DM_REG_CODE)
     print('DM registration result:', ret)
     print('DM version:', dm.ver())
 
     hwnd = move_game_window(dm)
-
     dm_ret = bind_game_window(dm, hwnd)
     if dm_ret != 1:
         messagebox.showerror('Error', f'Window binding failed, error code: {dm_ret}')
         sys.exit(1)
     print('Window binding successful, background mode started')
 
-    if getattr(sys, 'frozen', None):
-        basedir = sys._MEIPASS
-    else:
-        basedir = _PROJECT_ROOT
+    basedir = getattr(sys, '_MEIPASS', _PROJECT_ROOT) if getattr(sys, 'frozen', None) else _PROJECT_ROOT
     dm.setPath(os.path.join(basedir, 'Resource'))
 
-    paused = False
-    last_toggle_time = 0
+    setup_hotkeys(dm, hwnd)
 
-    def on_delete_press(event=None):
-        global paused
-        nonlocal last_toggle_time
-        current_time = time.time()
-        if current_time - last_toggle_time < 0.3:
-            return
-        if event.name == 'delete':
-            last_toggle_time = current_time
-            paused = not paused
-            if paused:
-                print('All commands paused, press delete to resume...')
-                dm.UnBindWindow()
-            else:
-                print('All commands resumed...')
-                bind_game_window(dm, hwnd)
-
-    keyboard.on_press_key('delete', on_delete_press)
-
-    # Disable automatic GC to avoid stutters during time-sensitive key presses
-    gc.disable()
-    
-    # Perform initial collection
+    # Enable automatic GC with standard thresholds to prevent memory accumulation in 32-bit Python
+    gc.enable()
+    gc.set_threshold(700, 10, 10)
     gc.collect()
-
 
     try:
         loop_counter = 0
         battle_counter = 0
-        last_refresh_time = time.time()
-        while True:
-            if check_stamina(dm):
-                break
 
-            if paused:
-                gc.collect()  # Collect when paused
-                time.sleep(0.5)
-                continue
+        def primary_game_step() -> bool:
+            """
+            Executes one overworld exploration/combat tick.
+            Returns True if a battle was fought, False otherwise.
+            """
+            nonlocal loop_counter, battle_counter
 
+            if check_stamina_throttled(dm, interval=1.5):
+                scheduler.stop()
+                return False
+
+            if check_anti_cheat_throttled(dm, interval=1.0):
+                return False
+
+            # Pre-battle check: ensure all mercenaries are alive before searching monsters (uses short-lived cache)
+            is_dead, target_slots = check_mercenary_dead_cached(dm, max_age=0.6)
+            if is_dead:
+                print(f'[Pre-Battle] ⚠️ Dead mercenary detected ({target_slots})! Reviving FIRST before battle...')
+                if not ensure_mercenaries_recovered(dm, DRAKE_IMAGES):
+                    print('[Pre-Battle] ⛔ Dead mercenary still not recovered! Holding before battle...')
+                    time.sleep(2)
+                    return False
+                state.invalidate_mercenary_cache()
 
             battle_entered = find_and_engage_monster(dm)
             if battle_entered or is_in_battle(dm):
                 handle_battle(dm)
+                state.invalidate_mercenary_cache()
                 gc.collect()  # Clean up COM references and memory after battle
 
-                # If anti-cheat was detected, exit now that the battle is over
-                # if anti_cheat_detected:
-                #     print('Battle finished. Anti-cheat was detected, exiting now...')
-                #     for _ in range(10):
-                #         play_alert_sound(dm)
-                #         time.sleep(0.5)
-                #     relogin(dm)
-                #     time.sleep(2)
-                #     sys.exit(10)
+                # Check if anti-cheat flagged a relog after finishing battle
+                if check_pending_anti_cheat_relog(dm):
+                    battle_counter = 0
+                    return True
 
-                # Check revive and food after battle
-                check_revive(dm, is_paused)
-                check_food(dm)
+                # Post-battle maintenance: only check when battle has ended and on overworld
+                if not is_in_battle(dm):
+                    # Wait for overworld screen and mercenary sidebar to settle
+                    time.sleep(1.5)
+
+                    # Post-battle maintenance: revives and food
+                    check_revive(dm, state.is_paused)
+                    state.invalidate_mercenary_cache()
+                    if not ensure_mercenaries_recovered(dm, DRAKE_IMAGES):
+                        print('[Maintenance] ⚠️ Mercenaries could not be recovered after battle. Holding before next cycle...')
+                        time.sleep(2)
+                        return False
+
+                    if check_food(dm):
+                        return False
 
                 battle_counter += 1
-                print(f'Battles completed: {battle_counter}/25')
-                if battle_counter >= 25:
-                    print('Reached 25 battles. Restarting application...')
-                    time.sleep(0.5)
-                    if getattr(sys, 'frozen', None):
-                        import subprocess
-                        cwd = os.path.dirname(os.path.abspath(sys.executable))
-                        subprocess.Popen([sys.executable], cwd=cwd)
-                        sys.exit(0)
-                    else:
-                        system('cls')
-                        gc.collect()
-                        battle_counter = 0
-                        print('Cache cleared, continuing...')
-                        time.sleep(5)
-                        relogin(dm)
-                        time.sleep(15)
+                elapsed_mins = int((time.time() - scheduler.session_start_time) // 60)
+                target_dur = getattr(scheduler, '_target_duration', None)
+                target_iter = getattr(scheduler, '_target_iterations', '?')
+                duration_str = (
+                    f'{elapsed_mins}m/{int(target_dur // 60)}m'
+                    if target_dur is not None
+                    else f'{elapsed_mins}m'
+                )
+                print(
+                    f'Battles completed: {scheduler.current_iteration + 1}/{target_iter} '
+                    f'(Grinding session: {duration_str} | Batch: {battle_counter}/{BATTLES_PER_BATCH_RELOG})'
+                )
 
+                print('Waiting 2s after battle before continuing to next battle...')
+                time.sleep(2)
 
-            # # Anti-cheat detected outside of battle — exit immediately
-            # if anti_cheat_detected and not (battle_entered or is_in_battle(dm)):
-            #     print('Anti-cheat detected (not in battle), exiting now...')
-            #     for _ in range(10):
-            #         play_alert_sound(dm)
-            #         time.sleep(0.5)
-            #     sys.exit(10)
+                return True
 
             loop_counter += 1
-            if loop_counter % 50 == 0:
-                gc.collect()  # Periodically clean up during overworld exploration
+            if loop_counter % 100 == 0:
+                gc.collect(1)  # Periodically clean up during exploration without heavy sweeps
 
-            time.sleep(0.15)
+            return False
+
+        def session_cooldown_handler(reason: str, iterations: int, elapsed_sec: float) -> None:
+            """Triggered by SessionScheduler when rest threshold (time/iterations) is reached."""
+            nonlocal battle_counter
+            print(f'[Break Session] 🛑 Rest break triggered ({reason}). Standing by in place...')
+            battle_counter = 0
+            state.invalidate_mercenary_cache()
+            gc.collect()
+
+        session_cfg = SessionConfig(
+            max_iterations=(BATTLES_BEFORE_BREAK_MIN, BATTLES_BEFORE_BREAK_MAX),
+            max_duration_seconds=None,
+            cooldown_seconds=(BREAK_DURATION_MIN_SECONDS, BREAK_DURATION_MAX_SECONDS),
+            loop_interval_seconds=0.15,
+        )
+
+        scheduler = SessionScheduler(
+            task_func=primary_game_step,
+            cooldown_func=session_cooldown_handler,
+            pause_check=state.is_paused,
+            config=session_cfg,
+        )
+
+        # Start continuous scheduler loop
+        scheduler.run()
+
     except KeyboardInterrupt:
         print('Program interrupted.')
     finally:
@@ -458,4 +703,4 @@ def create_login_window():
 
 
 if __name__ == '__main__':
-    create_login_window()
+    run_main_script()

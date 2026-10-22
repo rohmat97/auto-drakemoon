@@ -58,8 +58,8 @@ def has_non_black_in_region(dm, x1, y1, x2, y2, direction_name, threshold=0.015,
     return has_non_black
 
 def check_formation(dm, region1, region2):
-    (r1, x1, y1) = dm.FindPic(region1[0], region1[1], region1[2], region1[3], '080808.bmp', '050505', 0.975, 0)
-    (r2, x2, y2) = dm.FindPic(region2[0], region2[1], region2[2], region2[3], '080808.bmp', '050505', 0.975, 0)
+    (r1, x1, y1) = dm.FindPic(region1[0], region1[1], region1[2], region1[3], '080808.bmp', '050505',0.95, 0)
+    (r2, x2, y2) = dm.FindPic(region2[0], region2[1], region2[2], region2[3], '080808.bmp', '050505', 0.95, 0)
     if x1 > 0 and x2 > 0:
         return True
     return False
@@ -185,7 +185,7 @@ def strategy_south_west(dm):
 def strategy_south_north(dm):
     pan_camera(dm, 487, 0, 0.5)
     dm.Delay(50)
-    dm.MoveTo(475, 450)
+    dm.MoveTo(475, 400)
     dm.Delay(50)
     initiation_battle(dm)
     dm.Delay(50)
