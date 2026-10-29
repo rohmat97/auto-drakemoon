@@ -32,34 +32,42 @@ def is_pixel_active(color_hex, dark_threshold=30):
     except ValueError:
         return False
 
+_MONSTER_REGION_CACHE = {}
+
 def has_non_black_in_region(dm, x1, y1, x2, y2, direction_name, threshold=0.015, step=2):
     '''
-    Use non-black pixel ratio to determine if there are monsters in the region
-    threshold: Non-black pixel ratio threshold, default 1.5%
-    step: Pixel sampling step size (default: 2 for good precision)
+    Use non-black pixel ratio to determine if there are monsters in the region.
+    Points and thresholds are precomputed and cached in memory.
+    Uses early-exit as soon as threshold is met to avoid unnecessary COM calls.
     '''
-    non_black_count = 0
-    total_points = 0
-    get_color = dm.GetColor  # Local reference cache for faster loop execution
-    for py in range(y1, y2 + 1, step):
-        for px in range(x1, x2 + 1, step):
-            color = get_color(px, py)
-            total_points += 1
-            if is_pixel_active(color):
-                non_black_count += 1
+    cache_key = (x1, y1, x2, y2, step, threshold)
+    if cache_key not in _MONSTER_REGION_CACHE:
+        pts = tuple((px, py) for py in range(y1, y2 + 1, step) for px in range(x1, x2 + 1, step))
+        total_points = len(pts)
+        min_required = max(1, int(total_points * threshold))
+        _MONSTER_REGION_CACHE[cache_key] = (pts, min_required, total_points)
+    else:
+        pts, min_required, total_points = _MONSTER_REGION_CACHE[cache_key]
 
     if total_points == 0:
         return False
-    ratio = non_black_count / total_points
-    has_non_black = ratio > threshold
-    if direction_name:
-        status = '[Monsters Found]' if has_non_black else '[No Monsters]'
-        print(f'''   └ {direction_name:4} Region ({x1},{y1})-({x2},{y2}) → {status}  (Non-black: {non_black_count}/{total_points} ≈ {ratio:.1%})''')
-    return has_non_black
+
+    non_black_count = 0
+    get_color = dm.GetColor  # Local reference cache for faster loop execution
+    for px, py in pts:
+        color = get_color(px, py)
+        if is_pixel_active(color):
+            non_black_count += 1
+            if non_black_count >= min_required:
+                if direction_name:
+                    print(f'''   └ {direction_name:4} Region ({x1},{y1})-({x2},{y2}) → [Monsters Found] (Early exit: {non_black_count}/{total_points})''')
+                return True
+
+    return False
 
 def check_formation(dm, region1, region2):
-    (r1, x1, y1) = dm.FindPic(region1[0], region1[1], region1[2], region1[3], '080808.bmp', '050505',0.95, 0)
-    (r2, x2, y2) = dm.FindPic(region2[0], region2[1], region2[2], region2[3], '080808.bmp', '050505', 0.95, 0)
+    (r1, x1, y1) = dm.FindPic(region1[0], region1[1], region1[2], region1[3], '080808.bmp', '050505', 0.975, 0)
+    (r2, x2, y2) = dm.FindPic(region2[0], region2[1], region2[2], region2[3], '080808.bmp', '050505', 0.975, 0)
     if x1 > 0 and x2 > 0:
         return True
     return False
@@ -126,7 +134,7 @@ def strategy_east_south(dm):
     dm.Delay(50)
     pan_camera(dm, 371, 767, 0.4)
     dm.Delay(50)
-    dm.MoveTo(900, 125)
+    dm.MoveTo(975, 150)
     dm.Delay(50)
     initiation_battle(dm)
     dm.Delay(50)
@@ -138,7 +146,7 @@ def strategy_east_west(dm):
     dm.Delay(50)
     initiation_battle(dm)
     dm.Delay(50)
-    dm.MoveTo(425, 375)
+    dm.MoveTo(475, 375)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -185,7 +193,7 @@ def strategy_south_west(dm):
 def strategy_south_north(dm):
     pan_camera(dm, 487, 0, 0.5)
     dm.Delay(50)
-    dm.MoveTo(475, 400)
+    dm.MoveTo(475, 475)
     dm.Delay(50)
     initiation_battle(dm)
     dm.Delay(50)
@@ -195,7 +203,7 @@ def strategy_south_north(dm):
 def strategy_west_east(dm):
     pan_camera(dm, 1023, 352, 0.35)
     dm.Delay(50)
-    dm.MoveTo(350, 375)
+    dm.MoveTo(500, 375)
     dm.Delay(50) 
     initiation_battle(dm)
     dm.Delay(50)
@@ -207,7 +215,7 @@ def strategy_west_south(dm):
     dm.Delay(50)
     pan_camera(dm, 275, 767, 0.3)
     dm.Delay(50)
-    dm.MoveTo(450, 325)
+    dm.MoveTo(350, 275)
     dm.Delay(50)
     initiation_battle(dm)
     dm.Delay(50)
@@ -217,7 +225,7 @@ def strategy_west_south(dm):
 def strategy_west_north(dm):
     pan_camera(dm, 1023, 352, 0.25)
     dm.Delay(50)
-    pan_camera(dm, 250, 0, 0.25)
+    pan_camera(dm, 250, 10, 0.25)
     dm.Delay(50)
     dm.MoveTo(350, 550)
     dm.Delay(50)

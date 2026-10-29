@@ -48,22 +48,28 @@ def play_alert_sound(dm, sound_name='whatsapp.wav'):
 # ---------------------------------------------------------------------------
 def is_in_battle(dm):
     """Returns True if the game is currently on the battle screen."""
-    (_, x, _) = dm.FindPic(959, 666, 1016, 747, 'battle3.bmp|battle.bmp|battle2.bmp', '050505', 0.8, 0)
+    (_, x, _) = dm.FindPic(959, 666, 1016, 747, 'battle.bmp|battle3.bmp', '050505', 0.75, 0)
     return x > 0
 
 
 def stop_battle(dm, max_wait_sec=15):
     """
-    Stops/exits the battle screen immediately by pressing Esc until back in overworld.
+    Stops/exits the battle screen by pressing Esc periodically until back in overworld.
     Returns True if battle exited successfully, False if still in battle.
     """
     if not is_in_battle(dm):
         return True
 
-    dm.KeyPress(27)  # Esc
-    dm.Delay(200)
-    dm.KeyPress(27)  # Esc
-    dm.Delay(200)
+    start_time = time.time()
+    while time.time() - start_time < max_wait_sec:
+        dm.KeyPress(27)  # Esc
+        dm.Delay(150)
+        dm.KeyPress(27)  # Esc
+        dm.Delay(350)
+        if not is_in_battle(dm):
+            print('[Battle] ✅ Successfully exited battle.')
+            return True
+        time.sleep(0.5)
 
     exited = not is_in_battle(dm)
     if exited:
@@ -1138,7 +1144,7 @@ OPPOSITE_MONSTER_IMAGES = '|'.join(
 
 # Condition 2: West / North-West opposite area
 OPPOSITE_MONSTER_REGION_2 = (183, 93, 465, 374)
-OPPOSITE_TARGET_POSITION_2 = (50, 600)
+OPPOSITE_TARGET_POSITION_2 = (125, 600)
 OPPOSITE_MONSTER_IMAGES_2 = '|'.join(
     [r'ikan_tol\ikan_tol2.bmp'] +
     [rf'ikan_tol\ikan_tol2_{i}.bmp' for i in range(1, 5)] +

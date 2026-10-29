@@ -11,13 +11,7 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, '..', '..', '..'))
 ARTIFACT_DIR = r'C:\Users\rd\.gemini\antigravity-ide\brain\8af236ec-3f0c-4e90-98aa-e84c92680291'
 
-# Data directly from Battle/Rexd/ikan_tol/config.py
-FORMATION_REGIONS = {
-    'East': [(949, 140, 994, 257), (985, 437, 1002, 463)],
-    'South': [(940, 461, 998, 497), (23, 494, 66, 558)],
-    'West': [(13, 105, 33, 165), (14, 560, 48, 623)],
-    'North': [(935, 100, 1004, 238), (31, 153, 117, 270)],
-}
+from config import FORMATION_REGIONS
 
 OPTIONAL_FORMATIONS = {
     'WestSouth': [(0, 600, 50, 674), (407, 642, 455, 670)],
