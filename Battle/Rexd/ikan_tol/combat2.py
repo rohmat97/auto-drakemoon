@@ -1,16 +1,24 @@
 # combat2.py
 import time
 
-def check_revive(dm, is_paused_func):
-    if is_paused_func():
+REVIVE_BUTTON_IMAGES = 'revive_ok.bmp|revive_ok_text.bmp|emptyfooddrake.bmp|revive.bmp|revivedrake.bmp'
+
+def check_revive(dm, is_paused_func=None, revive_images=REVIVE_BUTTON_IMAGES):
+    if is_paused_func and is_paused_func():
         return False
-    (r, x, y) = dm.FindPic(0, 0, 1024, 768, 'revivedrake.bmp', '202020', 0.7, 0)
-    if x > 0:
-        print('Main character revived successfully')
-        dm.MoveTo(x, y)
+    (r, x, y) = dm.FindPic(0, 0, 1024, 768, revive_images, '202020', 0.8, 0)
+    if x >= 0 and y >= 0:
+        print(f'[Revival] ⚠️ Main character revive button OK found at ({x}, {y}) [match index: {r}]!')
+        if r == 0:      # revive_ok.bmp (56x15)
+            click_x, click_y = x + 25, y + 7
+        elif r == 1:    # revive_ok_text.bmp (24x12)
+            click_x, click_y = x + 12, y + 6
+        else:           # legacy smaller crops
+            click_x, click_y = x + 10, y + 5
+        dm.MoveTo(click_x, click_y)
         dm.Delay(100)
         dm.LeftClick()
-        dm.Delay(200)
+        dm.Delay(300)
         return True
     return False
 

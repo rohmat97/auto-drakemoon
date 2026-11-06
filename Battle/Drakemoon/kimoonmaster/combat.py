@@ -1,0 +1,242 @@
+# combat.py
+import time
+
+REVIVE_BUTTON_IMAGES = 'revive_ok.bmp|revive_ok_text.bmp|emptyfooddrake.bmp|revive.bmp|revivedrake.bmp'
+
+def check_revive(dm, is_paused_func=None, revive_images=REVIVE_BUTTON_IMAGES):
+    if is_paused_func and is_paused_func():
+        return False
+    (r, x, y) = dm.FindPic(0, 0, 1024, 768, revive_images, '202020', 0.8, 0)
+    if x >= 0 and y >= 0:
+        print(f'[Revival] ⚠️ Main character revive button OK found at ({x}, {y}) [match index: {r}]!')
+        if r == 0:      # revive_ok.bmp (56x15)
+            click_x, click_y = x + 25, y + 7
+        elif r == 1:    # revive_ok_text.bmp (24x12)
+            click_x, click_y = x + 12, y + 6
+        else:           # legacy smaller crops
+            click_x, click_y = x + 10, y + 5
+        dm.MoveTo(click_x, click_y)
+        dm.Delay(100)
+        dm.LeftClick()
+        dm.Delay(100)
+        return True
+    return False
+
+def is_pixel_active(color_hex, dark_threshold=30):
+    '''
+    Check if a color is a non-black / non-dark pixel.
+    Minimap background/fog in Gersang is black ('000000') or dark gray ('080808', etc.).
+    Monster and mercenary dots are bright colored pixels (Red, Yellow, Blue, etc.).
+    '''
+    if not color_hex or len(color_hex) < 6:
+        return False
+    if color_hex in ('000000', '080808', '050505', '070707', '0a0a0a', '0b0b0b'):
+        return False
+    try:
+        r = int(color_hex[0:2], 16)
+        g = int(color_hex[2:4], 16)
+        b = int(color_hex[4:6], 16)
+        return r > dark_threshold or g > dark_threshold or b > dark_threshold
+    except ValueError:
+        return False
+
+_MONSTER_REGION_CACHE = {}
+
+def has_non_black_in_region(dm, x1, y1, x2, y2, direction_name, threshold=0.015, step=2):
+    '''
+    Use non-black pixel ratio to determine if there are monsters in the region.
+    Points and thresholds are precomputed and cached in memory.
+    Uses early-exit as soon as threshold is met to avoid unnecessary COM calls.
+    '''
+    cache_key = (x1, y1, x2, y2, step, threshold)
+    if cache_key not in _MONSTER_REGION_CACHE:
+        pts = tuple((px, py) for py in range(y1, y2 + 1, step) for px in range(x1, x2 + 1, step))
+        total_points = len(pts)
+        min_required = max(1, int(total_points * threshold))
+        _MONSTER_REGION_CACHE[cache_key] = (pts, min_required, total_points)
+    else:
+        pts, min_required, total_points = _MONSTER_REGION_CACHE[cache_key]
+
+    if total_points == 0:
+        return False
+
+    non_black_count = 0
+    get_color = dm.GetColor  # Local reference cache for faster loop execution
+    for px, py in pts:
+        color = get_color(px, py)
+        if is_pixel_active(color):
+            non_black_count += 1
+            if non_black_count >= min_required:
+                if direction_name:
+                    print(f'''   └ {direction_name:4} Region ({x1},{y1})-({x2},{y2}) → [Monsters Found] (Early exit: {non_black_count}/{total_points})''')
+                return True
+
+    return False
+
+def check_formation(dm, region1, region2):
+    (r1, x1, y1) = dm.FindPic(region1[0], region1[1], region1[2], region1[3], '080808.bmp', '050505', 0.975, 0)
+    (r2, x2, y2) = dm.FindPic(region2[0], region2[1], region2[2], region2[3], '080808.bmp', '050505', 0.975, 0)
+    if x1 > 0 and x2 > 0:
+        return True
+    return False
+
+def send_key(dm, key, hold_ms=35, delay_after_ms=35):
+    '''Reliably send a key press in background mode.'''
+    dm.KeyDown(key)
+    dm.Delay(hold_ms)
+    dm.KeyUp(key)
+    dm.Delay(delay_after_ms)
+
+def pan_camera(dm, x, y, duration_sec):
+    '''
+    Smoothly pan the camera in background mode by streaming MoveTo
+    and clamping coordinates within the 1024x768 game screen.
+    '''
+    cx = max(0, min(1023, int(x)))
+    cy = max(0, min(767, int(y)))
+    end_time = time.time() + duration_sec
+    while time.time() < end_time:
+        dm.MoveTo(cx, cy)
+        dm.Delay(25)
+
+def execute_skill_loop(dm):
+    for key in [50, 51, 52,53,54,55,56]:
+        send_key(dm, key, 35, 35)
+        send_key(dm, 69, 35, 35)
+        send_key(dm, 69, 35, 35)
+
+def initial_call(dm):
+    send_key(dm, 187, 35, 35)  # =
+    send_key(dm, 82, 35, 35)   # R
+    send_key(dm, 69, 35, 35)   # E
+    send_key(dm, 69, 35, 35)   # E
+
+def initiation_battle(dm):
+    dm.Delay(35)
+    send_key(dm, 81, 35, 35)   # Q
+    send_key(dm, 87, 35, 35)   # W
+    dm.Delay(35)
+
+# Battle Strategies mapping (direction, monster_dir) -> action function
+
+def strategy_east_south(dm):
+    pan_camera(dm, 9, 371, 0.35)
+    pan_camera(dm, 371, 767, 0.10)
+    dm.MoveTo(810, 475)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+
+def strategy_east_west(dm):
+    pan_camera(dm, 9, 371, 0.40)
+    dm.MoveTo(155, 358)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+
+def strategy_east_north(dm):
+    pan_camera(dm, 9, 371, 0.4)
+    pan_camera(dm, 625, 0, 0.15)
+    dm.MoveTo(825, 200)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+    
+def strategy_south_east(dm):
+    pan_camera(dm, 487, 0, 0.40)
+    dm.Delay(50)
+    pan_camera(dm, 1023, 322, 0.25)
+    dm.MoveTo(580, 600)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+
+def strategy_south_west(dm):
+    pan_camera(dm, 487, 0, 0.375)
+    dm.Delay(50)
+    pan_camera(dm, 8, 449, 0.25)
+    dm.MoveTo(500, 600)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+
+def strategy_south_north(dm):
+    pan_camera(dm, 487, 0, 0.60)
+    dm.MoveTo(425, 450)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+
+def strategy_west_east(dm):
+    pan_camera(dm, 1023, 352, 0.60)
+    dm.Delay(50)
+    dm.MoveTo(225, 425)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+
+def strategy_west_south(dm):
+    pan_camera(dm, 1023, 352, 0.35)
+    dm.Delay(50)
+    pan_camera(dm, 275, 767, 0.25)
+    dm.Delay(50)
+    dm.MoveTo(200, 275)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+
+def strategy_west_north(dm):
+    pan_camera(dm, 1023, 352, 0.30)
+    dm.Delay(50)
+    pan_camera(dm, 250, 0, 0.28)
+    dm.MoveTo(300, 400)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+
+def strategy_north_east(dm):
+    pan_camera(dm, 480, 767, 0.35)
+    pan_camera(dm, 1023, 128, 0.28)
+    dm.MoveTo(550, 301)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+
+def strategy_north_south(dm):
+    pan_camera(dm, 440, 767, 0.45)
+    dm.Delay(50)
+    dm.MoveTo(550, 400)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+
+def strategy_north_west(dm):
+    pan_camera(dm, 483, 767, 0.40)
+    dm.Delay(50)
+    pan_camera(dm, 0, 150, 0.25)
+    dm.MoveTo(450, 200)
+    dm.Delay(50)
+    execute_skill_loop(dm)
+    dm.Delay(50)
+
+STRATEGIES = {
+    ('East', 'South'): strategy_east_south,
+    ('East', 'West'): strategy_east_west,
+    ('East', 'North'): strategy_east_north,
+    ('South', 'East'): strategy_south_east,
+    ('South', 'West'): strategy_south_west,
+    ('South', 'North'): strategy_south_north,
+    ('West', 'East'): strategy_west_east,
+    ('West', 'South'): strategy_west_south,
+    ('West', 'North'): strategy_west_north,
+    ('North', 'East'): strategy_north_east,
+    ('North', 'South'): strategy_north_south,
+    ('North', 'West'): strategy_north_west,
+}
+
+def execute_battle_strategy(dm, direction, monster_dir):
+    strategy = STRATEGIES.get((direction, monster_dir))
+    if strategy:
+        strategy(dm)
+        return True
+    return False
+

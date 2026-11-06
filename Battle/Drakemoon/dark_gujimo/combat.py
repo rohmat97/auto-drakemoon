@@ -1,13 +1,22 @@
 # combat.py
 import time
 
-def check_revive(dm, is_paused_func=None):
+REVIVE_BUTTON_IMAGES = 'revive_ok.bmp|revive_ok_text.bmp|emptyfooddrake.bmp|revive.bmp|revivedrake.bmp'
+
+def check_revive(dm, is_paused_func=None, revive_images=REVIVE_BUTTON_IMAGES):
     if is_paused_func and is_paused_func():
         return False
-    (r, x, y) = dm.FindPic(0, 0, 1024, 768, 'revivedrake.bmp', '202020', 0.8, 0)
-    if x > 0:
-        print(f'[Revival] ⚠️ Main character revive button OK found at ({x}, {y})!')
-        dm.MoveTo(x, y)
+    (r, x, y) = dm.FindPic(0, 0, 1024, 768, revive_images, '202020', 0.8, 0)
+    if x >= 0 and y >= 0:
+        print(f'[Revival] ⚠️ Main character revive button OK found at ({x}, {y}) [match index: {r}]!')
+        # Calculate click offset based on matched image (button center)
+        if r == 0:      # revive_ok.bmp (56x15)
+            click_x, click_y = x + 25, y + 7
+        elif r == 1:    # revive_ok_text.bmp (24x12)
+            click_x, click_y = x + 12, y + 6
+        else:           # legacy smaller crops
+            click_x, click_y = x + 10, y + 5
+        dm.MoveTo(click_x, click_y)
         dm.Delay(100)
         dm.LeftClick()
         dm.Delay(300)
@@ -110,7 +119,7 @@ def pan_camera(dm, x, y, duration_sec):
         dm.Delay(25)
 
 def execute_skill_loop(dm):
-    for key in [50, 51, 52, 53, 54]:
+    for key in [50]:
         send_key(dm, key, 35, 35)
         send_key(dm, 69, 35, 35)
         send_key(dm, 69, 35, 35)
@@ -130,19 +139,18 @@ def initiation_battle(dm):
 # Battle Strategies mapping (direction, monster_dir) -> action function
 
 def strategy_east_south(dm, is_wide_map=False):
-    pan_camera(dm, 9, 371, 0.4)
-    pan_camera(dm, 371, 767, 0.5)
+    pan_camera(dm, 9, 371, 0.35)
     dm.Delay(50)
-    dm.MoveTo(700, 125)
+    pan_camera(dm, 371, 767, 0.15)
+    dm.Delay(50)
+    dm.MoveTo(700, 500)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
 
 def strategy_east_west(dm, is_wide_map=False):
     pan_camera(dm, 9, 371, 0.45)
-    dm.Delay(50)
-    dm.MoveTo(475, 375)
-    dm.Delay(50)
+    dm.MoveTo(275, 375)
     execute_skill_loop(dm)
     dm.Delay(50)
 
@@ -171,7 +179,7 @@ def strategy_south_west(dm, is_wide_map=False):
     dm.Delay(50)
     pan_camera(dm, 8, 449, 0.25)
     dm.Delay(50)
-    dm.MoveTo(800, 450)
+    dm.MoveTo(700, 400)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -187,7 +195,7 @@ def strategy_south_north(dm, is_wide_map=False):
 def strategy_west_east(dm, is_wide_map=False):
     pan_camera(dm, 1023, 352, 0.45)
     dm.Delay(50)
-    dm.MoveTo(750, 400)
+    dm.MoveTo(825, 400)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -197,7 +205,7 @@ def strategy_west_south(dm, is_wide_map=False):
     dm.Delay(50)
     pan_camera(dm, 275, 767, 0.3)
     dm.Delay(50)
-    dm.MoveTo(800, 225)
+    dm.MoveTo(800, 300)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)

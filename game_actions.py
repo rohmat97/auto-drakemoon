@@ -139,7 +139,7 @@ def handle_captcha(dm, x_captcha, y_captcha):
     # Verify 2-3 times across frames for maximum accuracy
     print('[Captcha Handler] Sampling and verifying captcha 3 times across frames...')
     samples = []
-    for sample_round in range(2):
+    for sample_round in range(1):
         dm.Capture(x1, y1, x2, y2, captcha_save_path)
         dm.Delay(100)
         sample_code = solve_captcha(captcha_save_path, debug=False)
@@ -152,7 +152,7 @@ def handle_captcha(dm, x_captcha, y_captcha):
                 print(f'[Captcha Handler] Frame sample {sample_round + 1}/2: "{sample_code}"')
             else:
                 print(f'[Captcha Handler] Frame sample {sample_round + 1}/2 (non-5 chars): "{sample_code}"')
-        time.sleep(0.2)
+        time.sleep(1)
 
     # Positional voting consensus across the 2-3 samples
     if samples:
@@ -460,7 +460,10 @@ def check_food(dm, relogin_func=None, pause_callback=None):
             dm.UnBindWindow()
             return True
 
-    (_, x_empty, _) = dm.FindPic(450, 350, 680, 480, 'emptyfoodinter.bmp|emptyfooddrake.bmp', '050505', 0.8, 0)
+    if check_main_character_revive(dm):
+        return False
+
+    (_, x_empty, _) = dm.FindPic(450, 350, 680, 480, 'emptyfoodinter.bmp', '050505', 0.8, 0)
     if x_empty > 0:
         print('Satiety depleted, script paused')
         check_food.eat_count = 0
@@ -490,7 +493,7 @@ MERCENARY_SLOT_KEYS = {
     12: 187, # Key '='
 }
 
-REVIVE_BUTTON_IMAGES = 'revivedrake.bmp|revive.bmp'
+REVIVE_BUTTON_IMAGES = 'emptyfooddrake.bmp|revive.bmp|revivedrake.bmp'
 
 
 def detect_dead_mercenary_slots(dm, x1=0, y1=5, x2=55, y2=505, include_main_character=False):
@@ -1215,6 +1218,15 @@ def check_and_execute_opposite_monster(
     if opp2_x > 0 and opp2_y > 0:
         print(f'[Opposite Monster 2] Found monster at ({opp2_x}, {opp2_y}) in region {OPPOSITE_MONSTER_REGION_2}')
         print(f'[Opposite Monster 2] Moving cursor to {OPPOSITE_TARGET_POSITION_2} and executing battle skill...')
+    #         'East': 37,   # Arrow Left
+    # 'North': 40,  # Arrow Down
+        dm.KeyDown(37)
+        dm.Delay(50)
+        dm.KeyUp(37)
+        dm.KeyDown(40)
+        dm.Delay(50)
+        dm.KeyUp(40)
+        dm.Delay(50)
         dm.MoveTo(OPPOSITE_TARGET_POSITION_2[0], OPPOSITE_TARGET_POSITION_2[1])
         dm.Delay(50)
         init_combat(dm)

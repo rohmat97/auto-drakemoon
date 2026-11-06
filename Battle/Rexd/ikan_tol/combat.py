@@ -1,13 +1,21 @@
 # combat.py
 import time
 
-def check_revive(dm, is_paused_func=None):
+REVIVE_BUTTON_IMAGES = 'revive_ok.bmp|revive_ok_text.bmp|emptyfooddrake.bmp|revive.bmp|revivedrake.bmp'
+
+def check_revive(dm, is_paused_func=None, revive_images=REVIVE_BUTTON_IMAGES):
     if is_paused_func and is_paused_func():
         return False
-    (r, x, y) = dm.FindPic(0, 0, 1024, 768, 'revivedrake.bmp', '202020', 0.8, 0)
-    if x > 0:
-        print(f'[Revival] ⚠️ Main character revive button OK found at ({x}, {y})!')
-        dm.MoveTo(x, y)
+    (r, x, y) = dm.FindPic(0, 0, 1024, 768, revive_images, '202020', 0.8, 0)
+    if x >= 0 and y >= 0:
+        print(f'[Revival] ⚠️ Main character revive button OK found at ({x}, {y}) [match index: {r}]!')
+        if r == 0:      # revive_ok.bmp (56x15)
+            click_x, click_y = x + 25, y + 7
+        elif r == 1:    # revive_ok_text.bmp (24x12)
+            click_x, click_y = x + 12, y + 6
+        else:           # legacy smaller crops
+            click_x, click_y = x + 10, y + 5
+        dm.MoveTo(click_x, click_y)
         dm.Delay(100)
         dm.LeftClick()
         dm.Delay(300)
@@ -128,6 +136,7 @@ def initiation_battle(dm):
     dm.Delay(35)
 
 # Battle Strategies mapping (direction, monster_dir) -> action function
+# Battle Strategies mapping (direction, monster_dir) -> action function
 
 def strategy_east_south(dm):
     pan_camera(dm, 9, 371, 0.4)
@@ -183,7 +192,7 @@ def strategy_south_west(dm):
     dm.Delay(50)
     pan_camera(dm, 8, 449, 0.25)
     dm.Delay(50)
-    dm.MoveTo(650, 500)
+    dm.MoveTo(750, 600)
     dm.Delay(50)
     initiation_battle(dm)
     dm.Delay(50)

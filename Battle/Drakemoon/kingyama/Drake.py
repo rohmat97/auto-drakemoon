@@ -822,7 +822,7 @@ def find_and_engage_monster(dm) -> bool:
     for zx1, zy1, zx2, zy2 in MONSTER_SEARCH_ZONES:
         if is_in_battle():
             return True
-        (_, x, y) = dm.FindPic(zx1, zy1, zx2, zy2, MONSTER_IMAGES, '050505', 0.5, 0)
+        (_, x, y) = dm.FindPic(zx1, zy1, zx2, zy2, MONSTER_IMAGES, '050505', 0.75, 0)
         if x > 0:
             break
 
@@ -839,7 +839,7 @@ def find_and_engage_monster(dm) -> bool:
                 dm.KeyPress(KEY_ESC)
                 dm.Delay(200)
                 state.no_monster_search_count = 0
-        time.sleep(0.005)  # Minimal yield to keep scan loop blazing fast at high CPU
+        time.sleep(0.5)  # Minimal yield to keep scan loop blazing fast at high CPU
         return is_in_battle()
 
     state.no_monster_search_count = 0

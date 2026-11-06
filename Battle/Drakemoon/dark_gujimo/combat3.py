@@ -3,21 +3,15 @@ from Battle.Drakemoon.dark_gujimo.combat import initiation_battle, execute_skill
 
 def strategy_east_south(dm):
     dm.MoveTo(9, 371)
-    time.sleep(0.45)
+    time.sleep(0.35)
     dm.MoveTo(511, 341)
     dm.Delay(50)
-    dm.MoveTo(904, 472)
-    dm.Delay(50)
-    initiation_battle(dm)
-    dm.MoveTo(600, 450)
-    dm.Delay(200)
-    dm.KeyDown(40)
-    time.sleep(0.3)
-    dm.KeyUp(40)
+    dm.MoveTo(371, 767)
+    time.sleep(0.15)
+    dm.MoveTo(800, 475)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
-    execute_skill_loop(dm)
    
 
 def strategy_east_west(dm):

@@ -1,10 +1,12 @@
 # combat.py
 import time
 
-def check_revive(dm, is_paused_func=None):
+REVIVE_BUTTON_IMAGES = 'emptyfooddrake.bmp|revive.bmp|revivedrake.bmp'
+
+def check_revive(dm, is_paused_func=None, revive_images=REVIVE_BUTTON_IMAGES):
     if is_paused_func and is_paused_func():
         return False
-    (r, x, y) = dm.FindPic(0, 0, 1024, 768, 'revivedrake.bmp', '202020', 0.8, 0)
+    (r, x, y) = dm.FindPic(0, 0, 1024, 768, revive_images, '202020', 0.8, 0)
     if x > 0:
         print(f'[Revival] ⚠️ Main character revive button OK found at ({x}, {y})!')
         dm.MoveTo(x, y)
@@ -123,10 +125,11 @@ def initiation_battle(dm):
 # Battle Strategies mapping (direction, monster_dir) -> action function
 
 def strategy_east_south(dm):
-    pan_camera(dm, 9, 371, 0.4)
-    pan_camera(dm, 371, 767, 0.5)
+    pan_camera(dm, 9, 371, 0.35)
     dm.Delay(50)
-    dm.MoveTo(700, 125)
+    pan_camera(dm, 371, 767, 0.15)
+    dm.Delay(50)
+    dm.MoveTo(800, 475)
     dm.Delay(50)
     initiation_battle(dm)
     dm.Delay(50)
