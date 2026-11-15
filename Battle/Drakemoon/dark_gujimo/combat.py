@@ -119,7 +119,7 @@ def pan_camera(dm, x, y, duration_sec):
         dm.Delay(25)
 
 def execute_skill_loop(dm):
-    for key in [50]:
+    for key in [50, 51]:
         send_key(dm, key, 35, 35)
         send_key(dm, 69, 35, 35)
         send_key(dm, 69, 35, 35)
@@ -140,10 +140,8 @@ def initiation_battle(dm):
 
 def strategy_east_south(dm, is_wide_map=False):
     pan_camera(dm, 9, 371, 0.35)
-    dm.Delay(50)
     pan_camera(dm, 371, 767, 0.15)
-    dm.Delay(50)
-    dm.MoveTo(700, 500)
+    dm.MoveTo(550, 450)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -169,7 +167,7 @@ def strategy_south_east(dm, is_wide_map=False):
     dm.Delay(50)
     pan_camera(dm, 1023, 322, 0.15)
     dm.Delay(50)
-    dm.MoveTo(600, 400)
+    dm.MoveTo(500, 375)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -179,7 +177,7 @@ def strategy_south_west(dm, is_wide_map=False):
     dm.Delay(50)
     pan_camera(dm, 8, 449, 0.25)
     dm.Delay(50)
-    dm.MoveTo(700, 400)
+    dm.MoveTo(675, 400)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -205,7 +203,7 @@ def strategy_west_south(dm, is_wide_map=False):
     dm.Delay(50)
     pan_camera(dm, 275, 767, 0.3)
     dm.Delay(50)
-    dm.MoveTo(800, 300)
+    dm.MoveTo(750, 275)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)
@@ -232,7 +230,7 @@ def strategy_north_east(dm, is_wide_map=False):
 def strategy_north_south(dm, is_wide_map=False):
     pan_camera(dm, 440, 767, 0.5)
     dm.Delay(50)
-    dm.MoveTo(475, 425)
+    dm.MoveTo(475, 350)
     dm.Delay(50)
     execute_skill_loop(dm)
     dm.Delay(50)

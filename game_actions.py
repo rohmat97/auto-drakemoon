@@ -299,6 +299,102 @@ def check_pending_anti_cheat_relog(dm, relogin_func=None):
     return False
 
 
+def handle_coin_shuffle_minigame(dm, max_wait_coin_sec=6.0, max_track_sec=18.0):
+    """
+    Captures live frames from the game window via DaMo and runs the
+    coin_shuffle_tracker OpenCV pipeline when the anti-cheat minigame appears.
+    Clicks the final winning character/slot once movement settles.
+    Returns True if solved and clicked, False otherwise.
+    """
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    if project_dir not in sys.path:
+        sys.path.insert(0, project_dir)
+
+    from coin_shuffle_tracker.config import DEFAULT_CONFIG
+    from coin_shuffle_tracker.detector import (
+        calibrate_starting_slots,
+        detect_arena_roi,
+        detect_character_blobs,
+        detect_initial_coin,
+    )
+    from coin_shuffle_tracker.tracker import ShuffleTracker
+    from coin_shuffle_tracker.utils import format_slot_label
+
+    pid = os.getpid()
+    temp_frame_path = os.path.join(dm.getPath(), f'temp_coin_shuffle_{pid}.bmp')
+    dm.MoveTo(0, 0)
+
+    def _capture_frame():
+        dm.Capture(0, 0, 1024, 768, temp_frame_path)
+        if not os.path.exists(temp_frame_path):
+            return None
+        return cv2.imread(temp_frame_path)
+
+    arena_roi = None
+    slot_xs = []
+    tracker = None
+    coin_deadline = time.time() + max_wait_coin_sec
+    track_deadline = None
+
+    print('[Coin Shuffle] 🎯 Anti-cheat minigame detected! Starting Coin Shuffle Tracker...')
+
+    while True:
+        frame = _capture_frame()
+        if frame is None:
+            time.sleep(0.05)
+            if time.time() > coin_deadline:
+                break
+            continue
+
+        if arena_roi is None:
+            arena_roi = detect_arena_roi(frame, DEFAULT_CONFIG) or (0, 0, 1024, 768)
+            print(f'[Coin Shuffle] Arena ROI: {arena_roi}')
+
+        if not slot_xs:
+            slot_xs, _ = calibrate_starting_slots(frame, arena_roi, DEFAULT_CONFIG)
+
+        if tracker is None:
+            cur_bboxes = detect_character_blobs(frame, arena_roi, DEFAULT_CONFIG)
+            coin_bbox, target_idx = detect_initial_coin(frame, arena_roi, cur_bboxes, DEFAULT_CONFIG)
+            if coin_bbox is not None and target_idx is not None:
+                tracker = ShuffleTracker(
+                    arena_roi=arena_roi,
+                    slot_x_positions=slot_xs,
+                    cfg=DEFAULT_CONFIG,
+                    fps=15.0,
+                )
+                tracker.initialize(frame, cur_bboxes[target_idx], cur_bboxes, target_idx)
+                track_deadline = time.time() + max_track_sec
+                print(
+                    f'[Coin Shuffle] 🪙 Coin locked onto {format_slot_label(target_idx + 1, DEFAULT_CONFIG)} '
+                    f'(Backend: {tracker.tracker_backend})'
+                )
+            elif time.time() > coin_deadline:
+                print('[Coin Shuffle] ⚠️ Timed out waiting for initial coin.')
+                return False
+        else:
+            tracker.update(frame)
+            if tracker.settled or (track_deadline is not None and time.time() > track_deadline):
+                break
+
+        time.sleep(0.03)
+
+    if tracker is None or tracker.target_bbox is None:
+        return False
+
+    final_slot = tracker.resolve_final_slot()
+    tx, ty, tw, th = tracker.target_bbox
+    click_x = int(round(tx + tw / 2.0))
+    click_y = int(round(ty + th / 2.0))
+    print(f'[Coin Shuffle] ✅ FINAL RESULT: {format_slot_label(final_slot, DEFAULT_CONFIG)} -> Clicking ({click_x}, {click_y})')
+
+    dm.MoveTo(click_x, click_y)
+    dm.Delay(120)
+    dm.LeftClick()
+    dm.Delay(400)
+    return True
+
+
 def check_anti_cheat(dm, relogin_func=None, immediate_wait=False):
     """
     Checks for anti-cheat indicators:
@@ -339,20 +435,23 @@ def check_anti_cheat(dm, relogin_func=None, immediate_wait=False):
         handle_captcha(dm, x_captcha, y_captcha)
         return True
 
-    # 2. Check anti-cheat banner indicator (Non-blocking: fights 1 more battle then relogs)
+    # 2. Check anti-cheat banner indicator -> trigger Coin Shuffle Minigame solver
     (_, x_ac, y_ac) = dm.FindPic(0, 0, 1024, 768, r'anti_cheat\anti_cheat.bmp|anti_cheat\anti_cheat_roof.bmp', '101010', 0.75, 0)
     if x_ac >= 0:
         now = time.time()
+        print(f'[Anti-Cheat] 🚨 Anti-cheat detected at ({x_ac}, {y_ac})! Triggering Coin Shuffle Tracker...')
+        if now - _last_anti_cheat_sound_time > 15.0:
+            _last_anti_cheat_sound_time = now
+            play_alert_sound(dm)
+
+        if handle_coin_shuffle_minigame(dm):
+            _anti_cheat_pending_relog = False
+            _last_anti_cheat_sound_time = 0
+            return True
+
         if not _anti_cheat_pending_relog:
             _anti_cheat_pending_relog = True
-            _last_anti_cheat_sound_time = now
-            print(f'[Anti-Cheat] 🚨 Anti-cheat detected at ({x_ac}, {y_ac})!')
-            print('[Anti-Cheat] 🔔 Alert sound triggered. Will fight 1 more battle before relogging (will not relog during battle).')
-            play_alert_sound(dm)
-        elif now - _last_anti_cheat_sound_time > 15.0:
-            _last_anti_cheat_sound_time = now
-            print(f'[Anti-Cheat] 🚨 Anti-cheat flagged at ({x_ac}, {y_ac}). Waiting for 1 battle to finish before relog...')
-            play_alert_sound(dm)
+            print('[Anti-Cheat] ⚠️ Coin Shuffle Tracker did not solve minigame. Flagging 1 battle before relogging.')
 
         # Return False so the bot continues to search for monster and fights 1 more battle.
         return False
@@ -381,6 +480,246 @@ def check_anti_cheat(dm, relogin_func=None, immediate_wait=False):
     #                 return False
 
     return False
+
+
+STAMINA_CHECK_REGION = (99, 671, 115, 679)
+STAMINA_GREEN_COLOR = '76b936'
+STAMINA_FOOD_IMAGES = 'drake_food.bmp|food.bmp|food2.bmp'
+EMPTY_FOOD_POPUP_IMAGES = 'emptyfoodinter.bmp|emptyfooddrake.bmp'
+_last_stamina_eat_time = 0.0
+_last_stamina_check_time = 0.0
+_stamina_callbacks = {
+    'pause_callback': None,
+    'is_paused_func': None,
+    'check_revive_func': None,
+}
+
+
+def configure_stamina(pause_callback=None, is_paused_func=None, check_revive_func=None) -> None:
+    """Registers bot-level callbacks once so Drake.py files need zero local stamina wrappers."""
+    _stamina_callbacks['pause_callback'] = pause_callback
+    _stamina_callbacks['is_paused_func'] = is_paused_func
+    _stamina_callbacks['check_revive_func'] = check_revive_func
+
+
+def reset_stamina_state() -> None:
+    """Resets global stamina check and eat cooldown timestamps."""
+    global _last_stamina_eat_time, _last_stamina_check_time
+    _last_stamina_eat_time = 0.0
+    _last_stamina_check_time = 0.0
+
+
+def is_stamina_green(
+    dm,
+    region: tuple = STAMINA_CHECK_REGION,
+    green_color: str = STAMINA_GREEN_COLOR,
+) -> bool:
+    """
+    Checks if `region` (default (99, 671, 115, 679)) contains green #76b936.
+    Returns True if green is present, False if not green.
+    """
+    x1, y1, x2, y2 = region
+    (_, fx, _) = dm.FindColor(x1, y1, x2, y2, f'{green_color}-252525', 0.8, 0)
+    if fx > 0:
+        return True
+
+    get_color = dm.GetColor
+    for px in range(x1, x2 + 1, 2):
+        for py in range(y1, min(y2, y1 + 6) + 1):
+            c = get_color(px, py)
+            if c:
+                try:
+                    r = int(c[0:2], 16)
+                    g = int(c[2:4], 16)
+                    b = int(c[4:6], 16)
+                    if abs(r - 0x76) <= 45 and abs(g - 0xB9) <= 50 and abs(b - 0x36) <= 40:
+                        return True
+                    if g >= 80 and g > r + 15 and g > b + 20:
+                        return True
+                except ValueError:
+                    pass
+
+    return False
+
+
+def is_stamina_low(
+    dm,
+    region: tuple = STAMINA_CHECK_REGION,
+    green_color: str = STAMINA_GREEN_COLOR,
+) -> bool:
+    """Returns True if stamina bar is not green or 0-stamina icon is present."""
+    if not is_stamina_green(dm, region=region, green_color=green_color):
+        return True
+    (_, x_no, _) = dm.FindPic(90, 695, 99, 703, 'nostamina.bmp', '050505', 1.0, 0)
+    return x_no >= 0
+
+
+def check_empty_food_popup(dm, popup_images: str = EMPTY_FOOD_POPUP_IMAGES) -> bool:
+    """
+    Checks for empty food dialog popup (emptyfoodinter.bmp / emptyfooddrake.bmp).
+    If detected, dismisses it with ESC and returns True.
+    """
+    (_, x_empty, _) = dm.FindPic(450, 350, 680, 480, popup_images, '050505', 0.85, 0)
+    if x_empty > 0:
+        dm.KeyPress(27)  # ESC
+        dm.Delay(200)
+        return True
+    return False
+
+
+def eat_stamina(
+    dm,
+    times: int = 9,
+    food_images: str = 'drake_food.bmp|food.bmp|food2.bmp',
+    inventory_images: str = 'break_inventory_bag.bmp|bag.bmp',
+) -> str:
+    """
+    Global stamina/food consumption helper:
+    1. Confirms the inventory window is actually open (via `inventory_images`)
+       before searching or clicking anything.
+    2. Presses 'i' (key 73) and waits for inventory to open if it is not open yet.
+    3. Once inventory is confirmed open, locates the food item, moves the cursor
+       to it, right-clicks `times` times (default 9), and closes inventory.
+
+    Returns:
+        'consumed': Food was found and successfully consumed.
+        'no_food': Inventory was confirmed open, but food item was not found.
+        'failed_open': Inventory could not be confirmed open (did not click).
+    """
+    if is_in_battle(dm):
+        return 'failed_open'
+
+    print(f'[Stamina] 🍱 Preparing to consume stamina/food {times} times via inventory...')
+
+    # Step 1: Ensure inventory is confirmed open BEFORE searching/clicking food
+    inv_open = False
+    for attempt in range(5):
+        (_, bx, by) = dm.FindPic(0, 0, 1024, 768, inventory_images, '101010', 0.65, 0)
+        if bx > 0:
+            inv_open = True
+            break
+        if attempt < 4:
+            dm.KeyPress(73)  # 'i' key
+            dm.Delay(500)
+
+    if not inv_open:
+        print('[Stamina] ⚠️ Inventory did not open cleanly. Skipping this cycle without clicking or pausing.')
+        dm.KeyPress(27)  # ESC to clear any stray popup
+        dm.Delay(200)
+        return 'failed_open'
+
+    # Let inventory UI finish settling before moving cursor or clicking
+    dm.Delay(200)
+
+    # Step 2: Search for food item inside the confirmed-open inventory
+    (_, fx, fy) = dm.FindPic(0, 0, 1024, 768, food_images, '101010', 0.70, 0)
+    if fx > 0:
+        print(f'[Stamina] Food item detected at ({fx}, {fy}). Moving cursor and right-clicking {times} times...')
+        dm.MoveTo(fx + 5, fy + 5)
+        dm.Delay(200)
+        for _ in range(times):
+            dm.RightClick()
+            dm.Delay(200)
+        # Close inventory
+        dm.KeyPress(73)  # 'i' key
+        dm.Delay(350)
+        print(f'[Stamina] ✅ Successfully consumed stamina food {times} times.')
+        return 'consumed'
+
+    # Inventory is confirmed open, but food item is genuinely missing
+    print(f'[Stamina] ⚠️ Inventory is open, but food item ({food_images}) was NOT found!')
+    dm.KeyPress(73)  # 'i' key
+    dm.Delay(350)
+    return 'no_food'
+
+
+def check_food_or_stamina(
+    dm,
+    ignore_cooldown: bool = False,
+    pause_callback=None,
+    is_paused_func=None,
+    check_revive_func=None,
+    food_images: str = STAMINA_FOOD_IMAGES,
+    times: int = 9,
+) -> bool:
+    """
+    Global stamina & empty-food check and refill helper:
+    1. Skips if in battle or not on overworld (bread.bmp not visible).
+    2. Checks revival prompt if `check_revive_func` is provided.
+    3. Checks 0-stamina icon (nostamina.bmp), green stamina bar (is_stamina_green),
+       and empty-food popup (check_empty_food_popup).
+    4. If depleted, opens inventory cleanly via eat_stamina() and consumes food `times` times.
+    Returns True ONLY if script should pause (food genuinely missing from inventory), False otherwise.
+    """
+    global _last_stamina_eat_time
+
+    if is_in_battle(dm):
+        return False
+
+    (_, x_bread, _) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
+    if x_bread <= 0:
+        return False
+
+    if check_revive_func is None:
+        check_revive_func = _stamina_callbacks.get('check_revive_func')
+    if is_paused_func is None:
+        is_paused_func = _stamina_callbacks.get('is_paused_func')
+    if pause_callback is None:
+        pause_callback = _stamina_callbacks.get('pause_callback')
+
+    if check_revive_func is not None:
+        paused_check = is_paused_func if is_paused_func is not None else (lambda: False)
+        if check_revive_func(dm, paused_check):
+            return False
+
+    (_, x_no_stamina, _) = dm.FindPic(90, 695, 99, 703, 'nostamina.bmp', '050505', 1, 0)
+    zero_stamina = (x_no_stamina >= 0)
+    green_present = is_stamina_green(dm)
+
+    empty_popup = False
+    if not green_present or zero_stamina:
+        empty_popup = check_empty_food_popup(dm)
+
+    if not green_present or zero_stamina or empty_popup:
+        now = time.time()
+        if ignore_cooldown or empty_popup or zero_stamina or (now - _last_stamina_eat_time > 4.0):
+            status_str = (
+                '0 stamina icon detected'
+                if zero_stamina
+                else ('Empty food popup detected' if empty_popup else f'Region {STAMINA_CHECK_REGION} is NOT green (#{STAMINA_GREEN_COLOR})')
+            )
+            print(f'[Stamina] 📉 {status_str}. Attempting to eat stamina food...')
+            eat_result = eat_stamina(dm, times=times, food_images=food_images)
+            _last_stamina_eat_time = time.time()
+
+            if eat_result == 'no_food':
+                print('[Stamina] ⛔ Pressed I but food item not found in inventory! Pausing script...')
+                if pause_callback:
+                    pause_callback()
+                dm.UnBindWindow()
+                messagebox.showwarning('No Food', 'Pressed I but food item not found in inventory! Pausing...')
+                return True
+            elif eat_result == 'consumed':
+                print('[Stamina] 🍱 Consumed food item. Resuming exploration.')
+                return False
+            else:
+                print('[Stamina] ⚠️ Inventory did not open cleanly. Skipping this cycle without pausing.')
+                return False
+
+    return False
+
+
+def check_stamina_throttled(dm, interval: float = 1.5, **kwargs) -> bool:
+    """
+    Throttles stamina checks to avoid repeatedly testing colors and popups every 150ms.
+    Stamina depletes over several minutes, so a 1.5s interval is safe and responsive.
+    """
+    global _last_stamina_check_time
+    now = time.time()
+    if now - _last_stamina_check_time < interval:
+        return False
+    _last_stamina_check_time = now
+    return check_food_or_stamina(dm, **kwargs)
 
 
 def check_stamina(dm, pause_callback=None):
@@ -412,40 +751,17 @@ def check_food(dm, relogin_func=None, pause_callback=None):
     check_food.eat_count += 1
 
     if check_food.eat_count % 5 == 0:
-        inv_open = False
-        for _ in range(5):
-            (_, bx, by) = dm.FindPic(0, 0, 1024, 768, 'break_inventory_bag.bmp|bag.bmp', '101010', 0.75, 0)
-            if bx > 0:
-                inv_open = True
-                break
-            dm.KeyPress(73)  # 'i' key
-            dm.Delay(500)
-
-        if inv_open:
-            print('[Food] Inventory is open. Searching for food item...')
-            (_, fx, fy) = dm.FindPic(0, 0, 1024, 768, 'drake_food.bmp|food.bmp', '101010', 0.75, 0)
-            if fx > 0:
-                print(f'[Food] Food detected at ({fx}, {fy}). Right-clicking 5 times to consume...')
-                dm.MoveTo(fx + 5, fy + 5)
-                dm.Delay(150)
-                for _ in range(5):
-                    dm.RightClick()
-                    dm.Delay(200)
-                # Close inventory
-                dm.KeyPress(73)  # 'i' key
-                dm.Delay(400)
-                return False
-            else:
-                print('[Food] ⚠️ Food item (drake_food.bmp) not detected in inventory, pausing script...')
-                # Close inventory
-                dm.KeyPress(73)  # 'i' key
-                dm.Delay(400)
-                check_food.eat_count = 0
-                if pause_callback:
-                    pause_callback()
-                print('All commands paused, press delete or page down to resume...')
-                dm.UnBindWindow()
-                return True
+        eat_result = eat_stamina(dm, times=5, food_images='drake_food.bmp|food.bmp')
+        if eat_result == 'consumed':
+            return False
+        if eat_result == 'no_food':
+            print('[Food] ⚠️ Food item (drake_food.bmp) not detected in inventory, pausing script...')
+            check_food.eat_count = 0
+            if pause_callback:
+                pause_callback()
+            print('All commands paused, press delete or page down to resume...')
+            dm.UnBindWindow()
+            return True
 
     (_, x_bread, _) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
     if x_bread > 0:
@@ -463,15 +779,16 @@ def check_food(dm, relogin_func=None, pause_callback=None):
     if check_main_character_revive(dm):
         return False
 
-    (_, x_empty, _) = dm.FindPic(450, 350, 680, 480, 'emptyfoodinter.bmp', '050505', 0.8, 0)
-    if x_empty > 0:
-        print('Satiety depleted, script paused')
-        check_food.eat_count = 0
-        if pause_callback:
-            pause_callback()
-        print('All commands paused, press delete or page down to resume...')
-        dm.UnBindWindow()
-        return True
+    if check_empty_food_popup(dm):
+        print('[Food] Empty food popup detected. Attempting to eat stamina food...')
+        if eat_stamina(dm, times=9) == 'no_food':
+            print('Satiety depleted, script paused')
+            check_food.eat_count = 0
+            if pause_callback:
+                pause_callback()
+            print('All commands paused, press delete or page down to resume...')
+            dm.UnBindWindow()
+            return True
     return False
 
 

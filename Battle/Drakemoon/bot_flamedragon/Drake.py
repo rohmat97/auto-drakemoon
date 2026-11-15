@@ -32,7 +32,7 @@ from Battle.Drakemoon.bot_tengu.combat import (
     check_revive, has_non_black_in_region, check_formation,
     execute_battle_strategy, initial_call,
 )
-from captcha_solver import solve_captcha
+from game_actions import handle_captcha
 
 # ---------------------------------------------------------------------------
 # Image pattern strings (kept here to avoid bloating config with long literals)
@@ -110,14 +110,17 @@ def check_food(dm):
             dm.UnBindWindow()
             return True
 
-    (_, x_empty, y_empty) = dm.FindPic(450, 350, 680, 480, 'emptyfoodinter.bmp', '050505', 0.8, 0)
-    if x_empty > 0:
-        print('Satiety depleted, script paused')
-        check_food.eat_count = 0
-        paused = True
-        print('All commands paused, press page down to resume...')
-        dm.UnBindWindow()
-        return True
+    from game_actions import check_empty_food_popup, eat_stamina
+    if check_empty_food_popup(dm):
+        print('[Stamina] Empty food popup detected. Attempting to eat stamina food...')
+        eat_result = eat_stamina(dm, times=9)
+        if eat_result == 'no_food':
+            print('Satiety depleted, script paused')
+            check_food.eat_count = 0
+            paused = True
+            print('All commands paused, press page down to resume...')
+            dm.UnBindWindow()
+            return True
     return False
 
 
@@ -191,72 +194,6 @@ def ensure_team_alive(dm, max_retries=3):
     return True
 
 
-def handle_captcha(dm, x_captcha, y_captcha):
-    """
-    Handles captcha dialog:
-    1. Moves cursor away so it doesn't block the characters.
-    2. Waits 2 seconds.
-    3. Captures the captcha region to temp_captcha.bmp.
-    4. Solves the captcha code via solve_captcha().
-    5. Clicks the input text box and types the code.
-    6. Presses Enter and clicks the OK button.
-    """
-    print(f'[Captcha Handler] Captcha dialog located at ({x_captcha}, {y_captcha}).')
-    # 1. Move cursor away from the dialog
-    dm.MoveTo(0, 0)
-    
-    # 2. Wait for 2 seconds as requested
-    print('[Captcha Handler] Waiting 2 seconds before solving...')
-    time.sleep(2.0)
-
-    # 3. Capture captcha rectangle relative to detect_captcha match
-    x1 = max(0, x_captcha + 3)
-    y1 = max(0, y_captcha - 84)
-    x2 = min(1024, x_captcha + 266)
-    y2 = min(768, y_captcha + 6)
-
-    captcha_save_path = os.path.join(dm.getPath(), 'temp_captcha.bmp')
-    dm.Capture(x1, y1, x2, y2, captcha_save_path)
-    dm.Delay(100)
-
-    # 4. Recognize captcha text
-    code = solve_captcha(captcha_save_path, debug=True)
-    print(f'[Captcha Handler] Solved code: "{code}"')
-
-    # 5. Focus/click the input field
-    input_x = x_captcha + 135
-    input_y = y_captcha + 70
-    dm.MoveTo(input_x, input_y)
-    dm.Delay(150)
-    dm.LeftClick()
-    dm.Delay(200)
-
-    # 6. Type the characters into the form
-    if code:
-        for char in code:
-            dm.KeyPressChar(char)
-            dm.Delay(80)
-    else:
-        print('[Captcha Handler] Warning: No code recognized, pressing Enter anyway.')
-
-    dm.Delay(200)
-
-    # 7. Press Enter key
-    dm.KeyPress(13)
-    dm.Delay(300)
-
-    # 8. Click OK button as confirmation
-    ok_x = x_captcha + 79
-    ok_y = y_captcha + 121
-    dm.MoveTo(ok_x, ok_y)
-    dm.Delay(150)
-    dm.LeftClick()
-    dm.Delay(1000)
-
-    print('[Captcha Handler] Form submitted and OK clicked successfully.')
-    return True
-
-
 def check_anti_cheat(dm):
     """Returns True if anti-cheat (horse-stamp missing or captcha dialog popup) is detected."""
     # 1. Check horse stamp vs bread indicator
@@ -279,6 +216,26 @@ def check_anti_cheat(dm):
         print(f'[Anti-Cheat] Captcha dialog detected at ({x_captcha}, {y_captcha})!')
         handle_captcha(dm, x_captcha, y_captcha)
         # return True
+
+    # 3. Check Coin Shuffle anti-cheat banner
+    (_, x_ac, y_ac) = dm.FindPic(0, 0, 1024, 768, r'anti_cheat\anti_cheat.bmp|anti_cheat\anti_cheat_roof.bmp', '101010', 0.75, 0)
+    if x_ac >= 0:
+        print(f'[Anti-Cheat] 🚨 Anti-cheat detected at ({x_ac}, {y_ac})! Triggering Coin Shuffle Tracker...')
+        play_alert_sound(dm)
+        try:
+            cur = os.path.dirname(os.path.abspath(__file__))
+            for _ in range(5):
+                if os.path.exists(os.path.join(cur, 'game_actions.py')):
+                    if cur not in sys.path:
+                        sys.path.insert(0, cur)
+                    break
+                cur = os.path.dirname(cur)
+            from game_actions import handle_coin_shuffle_minigame
+            if handle_coin_shuffle_minigame(dm):
+                return False
+        except Exception as e:
+            print(f'[Anti-Cheat] ⚠️ Coin Shuffle Tracker error: {e}')
+        return True
 
     return False
 

@@ -131,8 +131,32 @@ def check_dead_mercenary(dm):
         dm.Delay(500)
 
 
+def _import_coin_shuffle_handler():
+    cur = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(5):
+        if os.path.exists(os.path.join(cur, 'game_actions.py')):
+            if cur not in sys.path:
+                sys.path.insert(0, cur)
+            break
+        cur = os.path.dirname(cur)
+    from game_actions import handle_coin_shuffle_minigame
+    return handle_coin_shuffle_minigame
+
+
 def check_anti_cheat(dm):
-    """Returns True if the anti-cheat horse-stamp is detected."""
+    """Returns True if anti-cheat is detected (and unsolved by Coin Shuffle Tracker)."""
+    (_, x_ac, y_ac) = dm.FindPic(0, 0, 1024, 768, r'anti_cheat\anti_cheat.bmp|anti_cheat\anti_cheat_roof.bmp', '101010', 0.75, 0)
+    if x_ac >= 0:
+        print(f'[Anti-Cheat] 🚨 Anti-cheat detected at ({x_ac}, {y_ac})! Triggering Coin Shuffle Tracker...')
+        play_alert_sound(dm)
+        try:
+            handle_coin_shuffle_minigame = _import_coin_shuffle_handler()
+            if handle_coin_shuffle_minigame(dm):
+                return False
+        except Exception as e:
+            print(f'[Anti-Cheat] ⚠️ Coin Shuffle Tracker error: {e}')
+        return True
+
     (_, x_horse, _) = dm.FindPic(599, 21, 650, 49, r'anti_cheat\horse.bmp', '050505', 0.8, 0)
     (_, x_bread, _) = dm.FindPic(50, 650, 93, 689, r'anti_cheat\bread.bmp', '050505', 0.8, 0)
     if x_horse <= 0 and x_bread > 0:

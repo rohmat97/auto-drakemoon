@@ -44,10 +44,14 @@ from Battle.Drakemoon.kingyama.combat3 import (
 import game_actions
 from game_actions import (
     relogin,
-    check_food as base_check_food,
     check_anti_cheat,
     check_pending_anti_cheat_relog,
-    check_stamina as base_check_stamina,
+    STAMINA_FOOD_IMAGES,
+    eat_stamina,
+    is_stamina_green,
+    is_stamina_low,
+    check_food_or_stamina,
+    check_stamina_throttled,
     stop_battle,
     is_mercenary_dead,
     ensure_mercenaries_recovered,
@@ -88,9 +92,6 @@ MONSTER_SEARCH_ZONES = [
 
 # Stamina / Food Bar Check Configuration
 # Position: 99, 671, 115, 679 | Color: #76b936
-STAMINA_CHECK_REGION = (99, 671, 115, 679)
-STAMINA_GREEN_COLOR = '76b936'
-STAMINA_FOOD_IMAGES = 'drake_food.bmp|food.bmp'
 
 # Grinding Session & Break Guidelines Configuration
 BATTLES_BEFORE_BREAK_MIN = 400
@@ -396,6 +397,7 @@ def is_in_battle(dm=None) -> bool:
 
 # Wire global battle state to game_actions module so all sub-actions benefit from instant check
 game_actions.is_in_battle = is_in_battle
+game_actions.configure_stamina(pause_callback=state.pause, is_paused_func=state.is_paused, check_revive_func=check_revive)
 
 
 def interruptible_sleep(seconds: float, step: float = 0.05) -> bool:
@@ -419,154 +421,7 @@ def select_unit_1(dm, delay_ms: int = 25) -> None:
     dm.Delay(delay_ms)
 
 
-_last_stamina_eat_time = 0.0
 
-
-def is_stamina_green(dm) -> bool:
-    """
-    Checks if region (99, 671, 115, 679) contains green color #76b936.
-    Returns True if green is present, False if not green.
-    """
-    x1, y1, x2, y2 = STAMINA_CHECK_REGION
-    # 1. DaMo native FindColor for 76b936 with color tolerance
-    (_, fx, _) = dm.FindColor(x1, y1, x2, y2, f'{STAMINA_GREEN_COLOR}-202020', 0.8, 0)
-    if fx > 0:
-        return True
-
-    # 2. Pixel sampling check in region (99, 671, 115, 679)
-    get_color = dm.GetColor
-    for px in range(x1, x2 + 1, 2):
-        for py in (671, 678, 674, 675):
-            c = get_color(px, py)
-            if c:
-                try:
-                    r = int(c[0:2], 16)
-                    g = int(c[2:4], 16)
-                    b = int(c[4:6], 16)
-                    if abs(r - 0x76) <= 35 and abs(g - 0xb9) <= 40 and abs(b - 0x36) <= 30:
-                        return True
-                    if g >= 85 and g > r + 15 and g > b + 20:
-                        return True
-                except ValueError:
-                    pass
-
-    return False
-
-
-def eat_stamina(dm, times: int = 2) -> bool:
-    """
-    Consumes stamina/food by opening inventory ('i'), searching for
-    food item (drake_food.bmp / food.bmp), right-clicking it `times` times,
-    and then closing inventory ('i').
-    Returns True if successfully eaten, False if food item not found.
-    """
-    if is_in_battle(dm):
-        return False
-    print(f'[Stamina] 🍱 Consuming stamina/food {times} times via inventory...')
-    inv_open = False
-    for _ in range(5):
-        (_, bx, by) = dm.FindPic(0, 0, 1024, 768, 'break_inventory_bag.bmp|bag.bmp', '101010', 0.75, 0)
-        if bx > 0:
-            inv_open = True
-            break
-        dm.KeyPress(73)  # 'i' key
-        dm.Delay(500)
-
-    if not inv_open:
-        print('[Stamina] ⚠️ Failed to open inventory!')
-        return False
-
-    print('[Stamina] Inventory opened. Searching for food item (drake_food.bmp / food.bmp)...')
-    (_, fx, fy) = dm.FindPic(0, 0, 1024, 768, STAMINA_FOOD_IMAGES, '101010', 0.75, 0)
-    if fx > 0:
-        print(f'[Stamina] Food item detected at ({fx}, {fy}). Right-clicking {times} times...')
-        dm.MoveTo(fx + 5, fy + 5)
-        dm.Delay(150)
-        for _ in range(times):
-            dm.RightClick()
-            dm.Delay(250)
-        # Close inventory
-        dm.KeyPress(73)  # 'i' key
-        dm.Delay(400)
-        print(f'[Stamina] ✅ Successfully consumed stamina item {times} times.')
-        return True
-    else:
-        print(f'[Stamina] ⚠️ Food item ({STAMINA_FOOD_IMAGES}) not detected in inventory!')
-        # Close inventory
-        dm.KeyPress(73)  # 'i' key
-        dm.Delay(400)
-        return False
-
-
-def check_food_or_stamina(dm) -> bool:
-    """
-    Checks if region (99, 671, 115, 679) is not green #76b936.
-    If not green (or 0 stamina):
-        Consumes stamina item 2 times via inventory.
-    Also handles empty food dialog popup.
-    Returns True if script should pause (food exhausted / stamina depleted), False otherwise.
-    """
-    global _last_stamina_eat_time
-
-    # Do not perform inventory operations if currently in battle
-    if is_in_battle(dm):
-        return False
-
-    # Check that overworld HUD is present (bread icon visible).
-    # If not on overworld (battle screen, loading screen, transition), skip stamina checks.
-    (_, x_bread, _) = dm.FindPic(43, 644, 101, 692, 'bread.bmp', '050505', 0.8, 0)
-    if x_bread <= 0:
-        return False
-
-    # Check for empty food popup
-    (_, x_empty, _) = dm.FindPic(450, 350, 680, 480, 'emptyfoodinter.bmp|emptyfooddrake.bmp', '050505', 0.8, 0)
-    if x_empty > 0:
-        print('[Stamina] ⚠️ Empty food popup detected! Pausing script...')
-        state.pause()
-        dm.UnBindWindow()
-        messagebox.showwarning('Food Depleted', 'Food/Satiety depleted! Script paused.')
-        return True
-
-    # Check zero-stamina icon (nostamina.bmp)
-    (_, x_no_stamina, _) = dm.FindPic(90, 695, 99, 703, 'nostamina.bmp', '050505', 1, 0)
-    zero_stamina = (x_no_stamina >= 0)
-
-    # Check if region (99, 671, 115, 679) contains green #76b936
-    green_present = is_stamina_green(dm)
-
-    if not green_present or zero_stamina:
-        now = time.time()
-        # Cooldown of 3 seconds to avoid consecutive rapid inventory toggles
-        if now - _last_stamina_eat_time > 3.0:
-            status_str = f'Region {STAMINA_CHECK_REGION} is NOT green (#{STAMINA_GREEN_COLOR})' if not zero_stamina else '0 stamina icon detected'
-            print(f'[Stamina] 📉 {status_str}. Eating stamina 2 times...')
-            success = eat_stamina(dm, times=8)
-            _last_stamina_eat_time = time.time()
-
-            if not success:
-                print('[Stamina] ⛔ Food item missing from inventory! Pausing script...')
-                state.pause()
-                dm.UnBindWindow()
-                messagebox.showwarning('No Food', 'Stamina depleted and food item not found in inventory! Pausing...')
-                return True
-            else:
-                # Allow HUD to update and verify new state
-                time.sleep(0.5)
-                if is_stamina_green(dm):
-                    print(f'[Stamina] 📈 Replenished! Green color #{STAMINA_GREEN_COLOR} restored at {STAMINA_CHECK_REGION}.')
-                return False
-
-    return False
-
-
-def check_food(dm):
-    """Check food/stamina bar and consume food if needed, pausing if food is exhausted."""
-    return check_food_or_stamina(dm)
-
-
-def check_stamina(dm):
-    """Check food/stamina bar and consume food if needed, pausing if food is exhausted."""
-    return check_food_or_stamina(dm)
 
 
 def check_mercenary_dead_cached(dm, max_age: float = 0.4) -> tuple:
@@ -599,17 +454,6 @@ def check_anti_cheat_throttled(dm, interval: float = 1.0, **kwargs) -> bool:
     return check_anti_cheat(dm, **kwargs)
 
 
-def check_stamina_throttled(dm, interval: float = 1.5) -> bool:
-    """
-    Throttles stamina checks to avoid repeatedly testing colors and popups every 150ms.
-    Stamina depletes over several minutes, so a 1.5s interval is completely safe and responsive.
-    """
-    now = time.time()
-    if now - state.last_stamina_check < interval:
-        return False
-    state.last_stamina_check = now
-    return check_food_or_stamina(dm)
-
 
 class CaptchaWatcher:
     """
@@ -625,6 +469,7 @@ class CaptchaWatcher:
         (0, 0, 1024, 768, r'anti_cheat\detect_captcha.bmp', 0.8),
         (350, 450, 550, 530, r'anti_cheat\ok.bmp', 0.75),
         (350, 415, 600, 560, r'anti_cheat\renewal.bmp', 0.7),
+        (0, 0, 1024, 768, r'anti_cheat\anti_cheat.bmp|anti_cheat\anti_cheat_roof.bmp', 0.75),
     )
 
     def __init__(self, interval: float = 0.5):
@@ -1162,9 +1007,10 @@ def perform_fresh_start(dm, hwnd, resource_path: str) -> None:
     - Performs full generational garbage collection (gc.collect).
     - Flushes OS working set memory back to Windows kernel.
     """
-    global combat_cache, _last_stamina_eat_time
+    global combat_cache
     global check_revive, check_formation, execute_battle_strategy, initial_call, initiation_battle, execute_skill_loop
     global execute_battle_strategy2, execute_battle_strategy3, STRATEGIES_1, STRATEGIES_2, STRATEGIES_3
+    global check_anti_cheat, check_pending_anti_cheat_relog, eat_stamina, is_stamina_green, is_stamina_low, check_food_or_stamina, check_stamina_throttled
 
     print('\n' + '=' * 68)
     print(f'🔄 [Fresh Start] Reached {BATTLES_PER_FRESH_START} battles! Running fresh start refresh...')
@@ -1188,7 +1034,6 @@ def perform_fresh_start(dm, hwnd, resource_path: str) -> None:
     state.last_anti_cheat_check = 0.0
     state.engage_fail_count = 0
     state.invalidate_mercenary_cache()
-    _last_stamina_eat_time = 0.0
 
     # 3. Reload underlying modules (clears function closures and module caches)
     print('[Fresh Start] 📦 Reloading combat, combat2, combat3, and game_actions modules...')
@@ -1212,8 +1057,17 @@ def perform_fresh_start(dm, hwnd, resource_path: str) -> None:
         STRATEGIES_2 = getattr(combat2_module, 'STRATEGIES', STRATEGIES_2)
         STRATEGIES_3 = getattr(combat3_module, 'STRATEGIES', STRATEGIES_3)
 
-        # Re-wire global is_in_battle into game_actions
+        # Re-wire global is_in_battle into game_actions and refresh anti-cheat refs
         game_actions.is_in_battle = is_in_battle
+        check_anti_cheat = game_actions.check_anti_cheat
+        check_pending_anti_cheat_relog = game_actions.check_pending_anti_cheat_relog
+        eat_stamina = game_actions.eat_stamina
+        is_stamina_green = game_actions.is_stamina_green
+        is_stamina_low = game_actions.is_stamina_low
+        check_food_or_stamina = game_actions.check_food_or_stamina
+        check_stamina_throttled = game_actions.check_stamina_throttled
+        game_actions.configure_stamina(pause_callback=state.pause, is_paused_func=state.is_paused, check_revive_func=check_revive)
+        game_actions.reset_stamina_state()
 
         if hasattr(combat_module, '_MONSTER_REGION_CACHE'):
             combat_module._MONSTER_REGION_CACHE.clear()
@@ -1340,7 +1194,7 @@ def run_main_script():
                         interruptible_sleep(1.0)
                         return False
 
-                    if not is_in_battle() and check_food(dm):
+                    if not is_in_battle() and check_food_or_stamina(dm):
                         return False
 
             battle_counter += 1
