@@ -1,6 +1,7 @@
 {
   "pythonPath": "C:\\Users\\rd\\Documents\\exploration\\test\\python-32\\python.exe",
   "extraPaths": [
+    ".",
     "C:\\Users\\rd\\Documents\\exploration\\test\\python-32\\Lib\\site-packages"
   ]
 }

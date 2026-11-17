@@ -335,6 +335,8 @@ def handle_coin_shuffle_minigame(dm, max_wait_coin_sec=6.0, max_track_sec=18.0):
     tracker = None
     coin_deadline = time.time() + max_wait_coin_sec
     track_deadline = None
+    last_frame = None
+    last_bboxes_count = 0
 
     print('[Coin Shuffle] 🎯 Anti-cheat minigame detected! Starting Coin Shuffle Tracker...')
 
@@ -343,22 +345,28 @@ def handle_coin_shuffle_minigame(dm, max_wait_coin_sec=6.0, max_track_sec=18.0):
         if frame is None:
             time.sleep(0.05)
             if time.time() > coin_deadline:
+                print('[Coin Shuffle] ⚠️ Timed out: dm.Capture returned no frame.')
                 break
             continue
 
+        last_frame = frame
         if arena_roi is None:
-            arena_roi = detect_arena_roi(frame, DEFAULT_CONFIG) or (0, 0, 1024, 768)
-            print(f'[Coin Shuffle] Arena ROI: {arena_roi}')
+            detected_roi = detect_arena_roi(frame, DEFAULT_CONFIG)
+            if detected_roi is not None:
+                arena_roi = detected_roi
+                print(f'[Coin Shuffle] Arena ROI: {arena_roi}')
+        active_roi = arena_roi or (0, 0, 1024, 768)
 
         if not slot_xs:
-            slot_xs, _ = calibrate_starting_slots(frame, arena_roi, DEFAULT_CONFIG)
+            slot_xs, _ = calibrate_starting_slots(frame, active_roi, DEFAULT_CONFIG)
 
         if tracker is None:
-            cur_bboxes = detect_character_blobs(frame, arena_roi, DEFAULT_CONFIG)
-            coin_bbox, target_idx = detect_initial_coin(frame, arena_roi, cur_bboxes, DEFAULT_CONFIG)
+            cur_bboxes = detect_character_blobs(frame, active_roi, DEFAULT_CONFIG)
+            last_bboxes_count = len(cur_bboxes)
+            coin_bbox, target_idx = detect_initial_coin(frame, active_roi, cur_bboxes, DEFAULT_CONFIG)
             if coin_bbox is not None and target_idx is not None:
                 tracker = ShuffleTracker(
-                    arena_roi=arena_roi,
+                    arena_roi=active_roi,
                     slot_x_positions=slot_xs,
                     cfg=DEFAULT_CONFIG,
                     fps=15.0,
@@ -370,7 +378,14 @@ def handle_coin_shuffle_minigame(dm, max_wait_coin_sec=6.0, max_track_sec=18.0):
                     f'(Backend: {tracker.tracker_backend})'
                 )
             elif time.time() > coin_deadline:
-                print('[Coin Shuffle] ⚠️ Timed out waiting for initial coin.')
+                print(
+                    f'[Coin Shuffle] ⚠️ Timed out waiting for initial coin '
+                    f'(arena_roi={arena_roi}, detected_chars={last_bboxes_count}).'
+                )
+                if last_frame is not None:
+                    dbg_path = os.path.join(dm.getPath(), 'debug_coin_shuffle_timeout.bmp')
+                    cv2.imwrite(dbg_path, last_frame)
+                    print(f'[Coin Shuffle] 📸 Saved diagnostic frame to: {dbg_path}')
                 return False
         else:
             tracker.update(frame)

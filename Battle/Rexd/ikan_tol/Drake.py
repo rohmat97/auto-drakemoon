@@ -820,7 +820,7 @@ def execute_battle(dm, direction: str, found_monsters: list[str]) -> bool:
     if not found_monsters:
         return False
 
-    duration = 15 if found_monsters else 10
+    duration = 13 if found_monsters else 10
     select_unit_1(dm, delay_ms=25)
 
     # Execute battle strategy for each found monster directly from memory cache
