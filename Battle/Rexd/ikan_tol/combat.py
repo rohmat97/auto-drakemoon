@@ -212,7 +212,7 @@ def strategy_south_north(dm):
 def strategy_west_east(dm):
     pan_camera(dm, 1023, 352, 0.35)
     dm.Delay(50)
-    dm.MoveTo(500, 375)
+    dm.MoveTo(700, 375)
     dm.Delay(50) 
     initiation_battle(dm)
     dm.Delay(50)

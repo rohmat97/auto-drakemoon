@@ -8,10 +8,22 @@ import numpy as np
 
 try:
     from .config import DEFAULT_CONFIG, TrackerConfig
-    from .detector import BBox, detect_character_blobs
+    from .detector import (
+        BBox,
+        detect_character_blobs,
+        detect_initial_coin,
+        detect_sprites_adaptive,
+        is_starting_row_aligned,
+    )
 except ImportError:
     from config import DEFAULT_CONFIG, TrackerConfig
-    from detector import BBox, detect_character_blobs
+    from detector import (
+        BBox,
+        detect_character_blobs,
+        detect_initial_coin,
+        detect_sprites_adaptive,
+        is_starting_row_aligned,
+    )
 
 try:
     from scipy.optimize import linear_sum_assignment  # type: ignore
@@ -295,3 +307,161 @@ class ShuffleTracker:
             key=lambda i: abs(self.slot_x_positions[i] - final_cx),
         )
         return nearest_idx + 1
+
+
+def track_recorded_sequence(
+    frames: List[np.ndarray],
+    arena_roi: BBox,
+    cfg: TrackerConfig = DEFAULT_CONFIG,
+) -> Tuple[Optional[int], Optional[Tuple[int, int]], List[Tuple[int, int]], List[Optional[BBox]], str]:
+    """
+    Accurate offline tracker over a high-FPS recorded frame buffer.
+    - NEVER guesses: requires a verified aligned 5-character starting row with
+      a clear gold coin above one character.
+    - Tracks frame-to-frame via LK optical flow + adaptive per-frame background
+      blob correction + velocity continuity across crossovers.
+    - Snaps final position to the nearest sprite in the settled final 5-character row.
+
+    Returns:
+        (final_slot_1_to_5, click_xy, trajectory, per_frame_bboxes, status)
+    """
+    if len(frames) < 2:
+        return None, None, [], [], "too_few_frames"
+
+    # Phase 1: Strictly locate a valid aligned starting row + initial coin
+    # ONLY scan opening frames BEFORE the shuffle motion begins (never lock onto post-shuffle row!)
+    lock_frame_idx: Optional[int] = None
+    lock_chars: List[BBox] = []
+    lock_target_idx: Optional[int] = None
+
+    fh0, fw0 = frames[0].shape[:2]
+    prev_inner = frames[0][int(fh0 * 0.16) : int(fh0 * 0.88), int(fw0 * 0.06) : int(fw0 * 0.94)]
+    scan_limit = min(len(frames), 180)
+    for idx in range(scan_limit):
+        if idx > 0:
+            cur_inner = frames[idx][int(fh0 * 0.16) : int(fh0 * 0.88), int(fw0 * 0.06) : int(fw0 * 0.94)]
+            diff = float(cv2.absdiff(cur_inner, prev_inner).mean())
+            prev_inner = cur_inner
+            if diff > 6.0 and lock_frame_idx is None:
+                # Shuffle motion started before we ever saw an aligned row + coin
+                break
+        chars = detect_character_blobs(frames[idx], arena_roi, cfg)
+        if not is_starting_row_aligned(chars, cfg.slot_count):
+            continue
+        coin_bbox, target_idx = detect_initial_coin(frames[idx], arena_roi, chars, cfg)
+        if coin_bbox is not None and target_idx is not None:
+            lock_frame_idx = idx
+            lock_chars = chars
+            lock_target_idx = target_idx
+            break
+
+    if lock_frame_idx is None or lock_target_idx is None:
+        return None, None, [], [None] * len(frames), "missed_initial_coin"
+
+    # Phase 2: LK Optical Flow + Adaptive Blob Snap + Momentum Guard
+    tb = lock_chars[lock_target_idx]
+    cx, cy = _bbox_center(tb)
+    bw, bh = float(tb[2]), float(tb[3])
+    vx, vy = 0.0, 0.0
+    alpha = cfg.velocity_smoothing
+
+    per_frame_bboxes: List[Optional[BBox]] = [None] * len(frames)
+    per_frame_bboxes[lock_frame_idx] = tb
+    trajectory: List[Tuple[int, int]] = [(int(round(cx)), int(round(cy)))]
+
+    prev_gray = cv2.cvtColor(frames[lock_frame_idx], cv2.COLOR_BGR2GRAY)
+    fh, fw = prev_gray.shape[:2]
+    lk_params = dict(
+        winSize=(21, 21),
+        maxLevel=3,
+        criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 20, 0.03),
+    )
+
+    for idx in range(lock_frame_idx + 1, len(frames)):
+        cur_frame = frames[idx]
+        cur_gray = cv2.cvtColor(cur_frame, cv2.COLOR_BGR2GRAY)
+
+        # Sample feature points inside current target bbox
+        x1 = max(0, int(round(cx - bw * 0.45)))
+        y1 = max(0, int(round(cy - bh * 0.45)))
+        x2 = min(fw, int(round(cx + bw * 0.45)))
+        y2 = min(fh, int(round(cy + bh * 0.45)))
+
+        flow_dx, flow_dy = vx, vy
+        flow_ok = False
+        if x2 - x1 >= 10 and y2 - y1 >= 10:
+            roi_gray = prev_gray[y1:y2, x1:x2]
+            pts = cv2.goodFeaturesToTrack(roi_gray, maxCorners=25, qualityLevel=0.05, minDistance=4)
+            if pts is not None and len(pts) >= 3:
+                pts[:, 0, 0] += x1
+                pts[:, 0, 1] += y1
+                next_pts, status, _ = cv2.calcOpticalFlowPyrLK(prev_gray, cur_gray, pts, None, **lk_params)
+                if next_pts is not None and status is not None:
+                    good_prev = pts[status.ravel() == 1]
+                    good_next = next_pts[status.ravel() == 1]
+                    if len(good_prev) >= 3:
+                        disps = good_next - good_prev
+                        flow_dx = float(np.median(disps[:, 0, 0]))
+                        flow_dy = float(np.median(disps[:, 0, 1]))
+                        flow_ok = True
+
+        pred_cx = cx + (flow_dx if flow_ok else vx)
+        pred_cy = cy + (flow_dy if flow_ok else vy)
+
+        # Adaptive blob snap when unambiguous (not during tight crossover overlap)
+        blobs = detect_sprites_adaptive(cur_frame, arena_roi, cfg)
+        if blobs:
+            dists = [
+                (math.hypot((b[0] + b[2] / 2.0) - pred_cx, (b[1] + b[3] / 2.0) - pred_cy), b)
+                for b in blobs
+            ]
+            dists.sort(key=lambda t: t[0])
+            nearest_dist, nearest_blob = dists[0]
+            second_dist = dists[1][0] if len(dists) > 1 else 999.0
+            # Only snap if clearly closer to one sprite (avoid stealing during crossover)
+            if nearest_dist <= 32.0 and (second_dist - nearest_dist) >= 18.0:
+                bcx, bcy = _bbox_center(nearest_blob)
+                pred_cx = 0.65 * bcx + 0.35 * pred_cx
+                pred_cy = 0.65 * bcy + 0.35 * pred_cy
+
+        inst_vx = pred_cx - cx
+        inst_vy = pred_cy - cy
+        vx = alpha * inst_vx + (1.0 - alpha) * vx
+        vy = alpha * inst_vy + (1.0 - alpha) * vy
+        cx = max(0.0, min(float(fw - 1), pred_cx))
+        cy = max(0.0, min(float(fh - 1), pred_cy))
+
+        cur_box: BBox = (
+            int(round(cx - bw / 2.0)),
+            int(round(cy - bh / 2.0)),
+            int(round(bw)),
+            int(round(bh)),
+        )
+        per_frame_bboxes[idx] = cur_box
+        trajectory.append((int(round(cx)), int(round(cy))))
+        prev_gray = cur_gray
+
+    # Phase 3: Snap final position to the settled 5-character final row
+    final_chars: List[BBox] = []
+    for idx in range(len(frames) - 1, max(lock_frame_idx, len(frames) - 15) - 1, -1):
+        cand = detect_character_blobs(frames[idx], arena_roi, cfg)
+        if is_starting_row_aligned(cand, cfg.slot_count):
+            final_chars = sorted(cand, key=lambda b: b[0] + b[2] / 2.0)[: cfg.slot_count]
+            break
+
+    if final_chars:
+        best_slot_idx = min(
+            range(len(final_chars)),
+            key=lambda i: math.hypot(
+                (final_chars[i][0] + final_chars[i][2] / 2.0) - cx,
+                (final_chars[i][1] + final_chars[i][3] / 2.0) - cy,
+            ),
+        )
+        fb = final_chars[best_slot_idx]
+        final_click = (int(round(fb[0] + fb[2] / 2.0)), int(round(fb[1] + fb[3] / 2.0)))
+        return best_slot_idx + 1, final_click, trajectory, per_frame_bboxes, "ok"
+
+    # Fallback to calibrated slot X if final row wasn't cleanly detected
+    slot_xs = [b[0] + b[2] / 2.0 for b in lock_chars]
+    best_slot_idx = min(range(len(slot_xs)), key=lambda i: abs(slot_xs[i] - cx))
+    return best_slot_idx + 1, (int(round(cx)), int(round(cy))), trajectory, per_frame_bboxes, "ok"

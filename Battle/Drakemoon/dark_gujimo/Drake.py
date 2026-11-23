@@ -80,8 +80,9 @@ DIRECTION_KEYS = {
 
 # Image patterns
 MONSTER_IMAGES = '|'.join(
-    [rf'dark_gujimo\elder{i}.bmp' for i in range(1, 12)] +
-    [rf'dark_gujimo\goju{i}.bmp' for i in range(1, 12)]
+    # [rf'dark_gujimo\elder{i}.bmp' for i in range(1, 12)] +
+    # [rf'dark_gujimo\goju{i}.bmp' for i in range(1, 12)] +
+    [rf'dark_gujimo\main{i}.bmp' for i in range(1, 13)]
 )
 DRAKE_IMAGES = '|'.join([rf'Character\drakemoon\drake{i}.bmp' for i in range(1, 12)])
 REVIVE_BUTTON_IMAGES = getattr(combat_module, 'REVIVE_BUTTON_IMAGES', 'revive_ok.bmp|revive_ok_text.bmp|emptyfooddrake.bmp|revive.bmp|revivedrake.bmp')
@@ -263,6 +264,13 @@ class CombatMemoryCache:
         if fn is not None:
             return fn
         return lambda dm: execute_battle_strategy2(dm, formation, monster_dir)
+
+    def get_strategy_3(self, formation: str, monster_dir: str):
+        """Retrieve pre-resolved combat3 strategy callable directly from memory cache."""
+        fn = self.strategy_dispatch.get((formation, monster_dir, 2))
+        if fn is not None:
+            return fn
+        return lambda dm: execute_battle_strategy3(dm, formation, monster_dir)
 
     def warmup(self, dm) -> None:
         """
@@ -831,7 +839,10 @@ def execute_battle(dm, direction: str, found_monsters: list[str]) -> bool:
         print(f'Executing strategy [{i+1}/{len(found_monsters)}] → Formation: {direction} | Monster: {monster_dir} (cached dispatch)')
         
         select_unit_1(dm, delay_ms=25)
-        if i == 1:
+        # if found_monsters length is 1 thenexecue strategy_fn = combat_cache.get_strategy_3(direction, monster_dir)
+        if len(found_monsters) == 1:
+            strategy_fn = combat_cache.get_strategy_3(direction, monster_dir)
+        elif i == 1:
             strategy_fn = combat_cache.get_strategy_2(direction, monster_dir)
         else:
             strategy_fn = combat_cache.get_strategy(direction, monster_dir, i)
@@ -1227,8 +1238,8 @@ def run_main_script():
                 perform_fresh_start(dm, hwnd, os.path.join(basedir, 'Resource'))
                 battles_since_refresh = 0
 
-            print('Standby 0.5s after battle before continuing to next battle...')
-            interruptible_sleep(0.5)
+            print('Standby 2.5s after battle before continuing to next battle...')
+            interruptible_sleep(2.5)
             return True
 
         def primary_game_step() -> bool:

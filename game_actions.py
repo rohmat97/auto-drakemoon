@@ -299,12 +299,24 @@ def check_pending_anti_cheat_relog(dm, relogin_func=None):
     return False
 
 
-def handle_coin_shuffle_minigame(dm, max_wait_coin_sec=6.0, max_track_sec=18.0):
+COIN_SHUFFLE_CAPTURE_RECT = (263, 241, 756, 657)  # (x1, y1, x2, y2) -> 493x416
+
+
+def handle_coin_shuffle_minigame(
+    dm,
+    max_wait_coin_sec=6.0,
+    max_track_sec=16.0,
+    capture_rect=COIN_SHUFFLE_CAPTURE_RECT,
+    record_video=True,
+):
     """
-    Captures live frames from the game window via DaMo and runs the
-    coin_shuffle_tracker OpenCV pipeline when the anti-cheat minigame appears.
-    Clicks the final winning character/slot once movement settles.
-    Returns True if solved and clicked, False otherwise.
+    High-FPS capture-first + offline accurate Coin Shuffle solver on `capture_rect`
+    (default 263,241,756,657 -> 493x416).
+    - Captures raw frames into RAM at maximum DaMo speed (no slow per-frame tracker overhead).
+    - NEVER guesses: refuses to click if we arrived after the shuffle already started
+      (missing the initial aligned 5-character row & gold coin).
+    - Tracks via LK optical flow + adaptive background blob correction + momentum guard.
+    Returns True if accurately solved and clicked, False otherwise.
     """
     project_dir = os.path.dirname(os.path.abspath(__file__))
     if project_dir not in sys.path:
@@ -312,95 +324,122 @@ def handle_coin_shuffle_minigame(dm, max_wait_coin_sec=6.0, max_track_sec=18.0):
 
     from coin_shuffle_tracker.config import DEFAULT_CONFIG
     from coin_shuffle_tracker.detector import (
-        calibrate_starting_slots,
-        detect_arena_roi,
         detect_character_blobs,
-        detect_initial_coin,
+        is_starting_row_aligned,
     )
-    from coin_shuffle_tracker.tracker import ShuffleTracker
-    from coin_shuffle_tracker.utils import format_slot_label
+    from coin_shuffle_tracker.tracker import track_recorded_sequence
+    from coin_shuffle_tracker.utils import (
+        draw_tracked_target,
+        draw_trajectory,
+        format_slot_label,
+    )
 
+    cap_x1, cap_y1, cap_x2, cap_y2 = capture_rect
+    cap_w, cap_h = cap_x2 - cap_x1, cap_y2 - cap_y1
     pid = os.getpid()
     temp_frame_path = os.path.join(dm.getPath(), f'temp_coin_shuffle_{pid}.bmp')
+    record_path = os.path.join(dm.getPath(), 'debug_coin_shuffle_record.avi')
     dm.MoveTo(0, 0)
 
     def _capture_frame():
-        dm.Capture(0, 0, 1024, 768, temp_frame_path)
+        dm.Capture(cap_x1, cap_y1, cap_x2, cap_y2, temp_frame_path)
         if not os.path.exists(temp_frame_path):
             return None
         return cv2.imread(temp_frame_path)
 
-    arena_roi = None
-    slot_xs = []
-    tracker = None
-    coin_deadline = time.time() + max_wait_coin_sec
-    track_deadline = None
-    last_frame = None
-    last_bboxes_count = 0
+    print(
+        f'[Coin Shuffle] 🎯 Anti-cheat minigame detected! High-FPS recording on '
+        f'({cap_x1}, {cap_y1}, {cap_x2}, {cap_y2}) [{cap_w}x{cap_h}]...'
+    )
 
-    print('[Coin Shuffle] 🎯 Anti-cheat minigame detected! Starting Coin Shuffle Tracker...')
+    raw_frames = []
+    start_t = time.time()
+    has_motion = False
+    settle_start = None
+    prev_inner = None
+    saw_starting_row = False
 
+    # Phase 1: High-FPS raw capture loop (zero slow tracking overhead)
     while True:
+        now = time.time()
+        elapsed = now - start_t
+        if elapsed > max_track_sec:
+            break
+
         frame = _capture_frame()
         if frame is None:
-            time.sleep(0.05)
-            if time.time() > coin_deadline:
+            if elapsed > max_wait_coin_sec:
                 print('[Coin Shuffle] ⚠️ Timed out: dm.Capture returned no frame.')
-                break
+                return False
             continue
 
-        last_frame = frame
-        if arena_roi is None:
-            detected_roi = detect_arena_roi(frame, DEFAULT_CONFIG)
-            if detected_roi is not None:
-                arena_roi = detected_roi
-                print(f'[Coin Shuffle] Arena ROI: {arena_roi}')
-        active_roi = arena_roi or (0, 0, 1024, 768)
+        raw_frames.append(frame)
+        fh, fw = frame.shape[:2]
 
-        if not slot_xs:
-            slot_xs, _ = calibrate_starting_slots(frame, active_roi, DEFAULT_CONFIG)
+        # On first few frames, verify we didn't arrive late after shuffle already started
+        if len(raw_frames) <= 5 and not saw_starting_row:
+            chars = detect_character_blobs(frame, (0, 0, fw, fh), DEFAULT_CONFIG)
+            if is_starting_row_aligned(chars, DEFAULT_CONFIG.slot_count):
+                saw_starting_row = True
 
-        if tracker is None:
-            cur_bboxes = detect_character_blobs(frame, active_roi, DEFAULT_CONFIG)
-            last_bboxes_count = len(cur_bboxes)
-            coin_bbox, target_idx = detect_initial_coin(frame, active_roi, cur_bboxes, DEFAULT_CONFIG)
-            if coin_bbox is not None and target_idx is not None:
-                tracker = ShuffleTracker(
-                    arena_roi=active_roi,
-                    slot_x_positions=slot_xs,
-                    cfg=DEFAULT_CONFIG,
-                    fps=15.0,
-                )
-                tracker.initialize(frame, cur_bboxes[target_idx], cur_bboxes, target_idx)
-                track_deadline = time.time() + max_track_sec
-                print(
-                    f'[Coin Shuffle] 🪙 Coin locked onto {format_slot_label(target_idx + 1, DEFAULT_CONFIG)} '
-                    f'(Backend: {tracker.tracker_backend})'
-                )
-            elif time.time() > coin_deadline:
-                print(
-                    f'[Coin Shuffle] ⚠️ Timed out waiting for initial coin '
-                    f'(arena_roi={arena_roi}, detected_chars={last_bboxes_count}).'
-                )
-                if last_frame is not None:
-                    dbg_path = os.path.join(dm.getPath(), 'debug_coin_shuffle_timeout.bmp')
-                    cv2.imwrite(dbg_path, last_frame)
-                    print(f'[Coin Shuffle] 📸 Saved diagnostic frame to: {dbg_path}')
-                return False
-        else:
-            tracker.update(frame)
-            if tracker.settled or (track_deadline is not None and time.time() > track_deadline):
+        inner = frame[int(fh * 0.16):int(fh * 0.88), int(fw * 0.06):int(fw * 0.94)]
+        if prev_inner is not None and inner.shape == prev_inner.shape:
+            diff = float(cv2.absdiff(inner, prev_inner).mean())
+            if diff > 5.0:
+                if not has_motion and not saw_starting_row and len(raw_frames) <= 6:
+                    print('[Coin Shuffle] ⚠️ Shuffle already in progress (missed initial coin) — refusing to guess.')
+                    return False
+                has_motion = True
+                settle_start = None
+            elif has_motion and diff < 1.8:
+                if settle_start is None:
+                    settle_start = now
+                elif (now - settle_start) >= 0.45:
+                    break
+            elif not has_motion and elapsed > max_wait_coin_sec:
                 break
+        prev_inner = inner
 
-        time.sleep(0.03)
-
-    if tracker is None or tracker.target_bbox is None:
+    if len(raw_frames) < 2:
+        print('[Coin Shuffle] ⚠️ Not enough frames captured.')
         return False
 
-    final_slot = tracker.resolve_final_slot()
-    tx, ty, tw, th = tracker.target_bbox
-    click_x = int(round(tx + tw / 2.0))
-    click_y = int(round(ty + th / 2.0))
+    total_sec = max(0.01, time.time() - start_t)
+    eff_fps = len(raw_frames) / total_sec
+    fh, fw = raw_frames[0].shape[:2]
+    print(f'[Coin Shuffle] 📹 Captured {len(raw_frames)} frames in {total_sec:.2f}s ({eff_fps:.1f} FPS). Tracking...')
+
+    # Phase 2: Offline accurate tracking (never guesses if initial coin was missed)
+    final_slot, click_xy, trajectory, per_frame_bboxes, status = track_recorded_sequence(
+        raw_frames, (0, 0, fw, fh), DEFAULT_CONFIG
+    )
+
+    # Save annotated recording for review
+    if record_video and raw_frames:
+        fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+        writer = cv2.VideoWriter(record_path, fourcc, max(10.0, min(30.0, eff_fps)), (fw, fh))
+        try:
+            trail_so_far = []
+            for i, f in enumerate(raw_frames):
+                vis = f.copy()
+                box = per_frame_bboxes[i] if i < len(per_frame_bboxes) else None
+                if box is not None:
+                    cx_i = int(round(box[0] + box[2] / 2.0))
+                    cy_i = int(round(box[1] + box[3] / 2.0))
+                    trail_so_far.append((cx_i, cy_i))
+                    draw_trajectory(vis, trail_so_far)
+                    draw_tracked_target(vis, box, label='COIN')
+                writer.write(vis)
+        finally:
+            writer.release()
+            print(f'[Coin Shuffle] 🎥 Saved recording to: {record_path}')
+
+    if status != 'ok' or final_slot is None or click_xy is None:
+        print(f'[Coin Shuffle] ⚠️ Could not accurately verify coin/target (status={status}). Refusing to guess.')
+        return False
+
+    click_x = cap_x1 + click_xy[0]
+    click_y = cap_y1 + click_xy[1]
     print(f'[Coin Shuffle] ✅ FINAL RESULT: {format_slot_label(final_slot, DEFAULT_CONFIG)} -> Clicking ({click_x}, {click_y})')
 
     dm.MoveTo(click_x, click_y)

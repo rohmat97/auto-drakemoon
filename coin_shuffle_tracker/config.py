@@ -14,10 +14,19 @@ class TrackerConfig:
     arena_roi: Optional[Tuple[int, int, int, int]] = None
 
     # Grass arena HSV range (OpenCV H: 0-179, S: 0-255, V: 0-255)
-    arena_green_lower: Tuple[int, int, int] = (35, 45, 45)
+    arena_green_lower: Tuple[int, int, int] = (22, 55, 35)
     arena_green_upper: Tuple[int, int, int] = (90, 255, 255)
     min_arena_area: int = 20000
     arena_top_padding: int = 40  # Extra headroom above grass for jump arcs & coin
+
+    # Grass background range for skin-agnostic foreground sprite segmentation
+    grass_bg_lower: Tuple[int, int, int] = (22, 55, 35)
+    grass_bg_upper: Tuple[int, int, int] = (58, 255, 190)
+    min_fg_sprite_area: int = 600
+    max_fg_sprite_area: int = 18000
+
+    # Fixed live-game capture rectangle (x1, y1, x2, y2) -> 493x416
+    capture_rect: Tuple[int, int, int, int] = (263, 241, 756, 657)
 
     # Pink-haired 2D character sprite HSV ranges (wraps around H=0/179)
     pink_hair_lower_1: Tuple[int, int, int] = (140, 60, 80)

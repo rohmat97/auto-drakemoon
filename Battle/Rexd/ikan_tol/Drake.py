@@ -76,8 +76,8 @@ DIRECTION_KEYS = {
 
 # Image patterns
 MONSTER_IMAGES = '|'.join(
-    [rf'crab_tomb\crab_tomb{i}.bmp' for i in range(1, 26)] +
-    [rf'fish/fish{i}.bmp' for i in range(1, 21)]
+    [rf'crab_tomb\crab_tomb{i}.bmp' for i in range(1, 26)] 
+    # [rf'fish/fish{i}.bmp' for i in range(1, 21)]
 )
 DRAKE_IMAGES = '|'.join(
     [rf'Character\rexd{i}.bmp' for i in range(1, 12)] +
@@ -801,9 +801,9 @@ def find_monsters(dm, direction: str, timeout: float = 1.0) -> list[str]:
                 if monster_dir not in found_monsters:
                     found_monsters.append(monster_dir)
                     print(f'Monster found at direction: {monster_dir} (cached scan)')
-                if len(found_monsters) >= 2:
+                if len(found_monsters) >= 1:
                     break
-        if len(found_monsters) >= 2:
+        if len(found_monsters) >= 1:
             break
         time.sleep(0.01)
     return found_monsters
