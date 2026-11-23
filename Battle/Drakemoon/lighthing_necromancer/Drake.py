@@ -149,11 +149,8 @@ def find_and_engage_monster(dm) -> bool:
         return False
 
     # Search concentric zones from center outward
-    x, y = 0, 0
-    for zx1, zy1, zx2, zy2 in MONSTER_SEARCH_ZONES:
-        (_, x, y) = dm.FindPic(zx1, zy1, zx2, zy2, MONSTER_IMAGES, '050505', 0.8, 0)
-        if x > 0:
-            break
+    from gpu_accel import find_monster_gpu
+    x, y = find_monster_gpu(dm, MONSTER_IMAGES, MONSTER_SEARCH_ZONES, threshold=0.80)
 
     if x <= 0:
         if current_time - state.last_monster_seen_time > 5:

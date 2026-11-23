@@ -30,7 +30,7 @@ def detect_arena_roi(
     Auto-detect the wooden-framed grass arena by segmenting the green grass field.
     Returns (x, y, w, h) padded upward for jump arcs/coin, or None if not found.
     """
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    hsv = cv2.cvtColor(cv2.UMat(frame) if cv2.ocl.useOpenCL() else frame, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(
         hsv,
         np.array(cfg.arena_green_lower, dtype=np.uint8),
@@ -167,7 +167,7 @@ def _detect_fg_character_blobs(
     if crop.size == 0:
         return []
 
-    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    hsv = cv2.cvtColor(cv2.UMat(crop) if cv2.ocl.useOpenCL() else crop, cv2.COLOR_BGR2HSV)
     grass_mask = cv2.inRange(
         hsv,
         np.array(cfg.grass_bg_lower, dtype=np.uint8),

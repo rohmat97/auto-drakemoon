@@ -13,6 +13,12 @@ from collections import Counter
 import cv2
 import numpy as np
 
+try:
+    from gpu_accel import init_gpu_opencl
+    init_gpu_opencl()
+except Exception:
+    pass
+
 from captcha_solver import solve_captcha
 
 # ---------------------------------------------------------------------------
@@ -936,17 +942,15 @@ def detect_dead_mercenary_slots(dm, x1=0, y1=5, x2=55, y2=505, include_main_char
             if hp_strip.size == 0:
                 continue
 
-            r = hp_strip[:, :, 2].astype(int)
-            g = hp_strip[:, :, 1].astype(int)
-            b = hp_strip[:, :, 0].astype(int)
+            # Run red/green HP bar color masking on GPU (OpenCL UMat when active)
+            u_strip = cv2.UMat(hp_strip) if cv2.ocl.useOpenCL() else hp_strip
+            # Red HP bar in Gersang: BGR -> B<80, G<80, R>140
+            red_mask = cv2.inRange(u_strip, (0, 0, 141), (79, 79, 255))
+            # Green HP bar in Gersang: BGR -> B<90, G>120, R<90
+            green_mask = cv2.inRange(u_strip, (0, 121, 0), (89, 255, 89))
 
-            # Red HP bar in Gersang: pure crimson red (184, 26, 26)
-            red_mask = (r > 140) & (g < 80) & (b < 80) & (r > g * 1.5) & (r > b * 1.5)
-            # Green HP bar in Gersang: poisoned / debuffed status
-            green_mask = (g > 120) & (r < 90) & (b < 90) & (g > r * 1.4)
-
-            red_pixels = int(np.sum(red_mask))
-            green_pixels = int(np.sum(green_mask))
+            red_pixels = int(cv2.countNonZero(red_mask))
+            green_pixels = int(cv2.countNonZero(green_mask))
 
             # A mercenary is alive if their HP bar has visible red or green pixels (HP > 0).
             # When DEAD (HP = 0), both red and green pixels are completely absent (< 6).

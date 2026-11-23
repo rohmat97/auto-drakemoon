@@ -645,14 +645,11 @@ def find_and_engage_monster(dm) -> bool:
             print('[Overworld] ⛔ Stamina is still low after refill. Holding monster search...')
             return False
 
-    # Search concentric zones from center outward
-    x, y = 0, 0
-    for zx1, zy1, zx2, zy2 in MONSTER_SEARCH_ZONES:
-        if is_in_battle():
-            return True
-        (_, x, y) = dm.FindPic(zx1, zy1, zx2, zy2, MONSTER_IMAGES, '050505', 0.8, 0)
-        if x > 0:
-            break
+    # Search concentric zones from center outward (GPU OpenCL UMat with dm.FindPic fallback)
+    from gpu_accel import find_monster_gpu
+    if is_in_battle():
+        return True
+    x, y = find_monster_gpu(dm, MONSTER_IMAGES, MONSTER_SEARCH_ZONES, threshold=0.80, is_in_battle_func=is_in_battle)
 
     if x <= 0:
         if current_time - state.last_monster_seen_time > 5:

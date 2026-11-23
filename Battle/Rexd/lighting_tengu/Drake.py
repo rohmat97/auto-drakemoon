@@ -141,11 +141,8 @@ def find_and_engage_monster(dm):
         find_and_engage_monster.last_dead_check = current_time
         check_dead_mercenary(dm)
 
-    x, y = 0, 0
-    for zx1, zy1, zx2, zy2 in MONSTER_SEARCH_ZONES:
-        (_, x, y) = dm.FindPic(zx1, zy1, zx2, zy2, MONSTER_IMAGES, '050505', 0.8, 0)
-        if x > 0:
-            break
+    from gpu_accel import find_monster_gpu
+    x, y = find_monster_gpu(dm, MONSTER_IMAGES, MONSTER_SEARCH_ZONES, threshold=0.80)
     if x <= 0:
         current_time_check = time.time()
         if current_time_check - last_monster_seen_time > 10:

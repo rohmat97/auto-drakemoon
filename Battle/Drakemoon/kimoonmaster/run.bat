@@ -13,6 +13,7 @@ cd /d "%~dp0"
 :loop
 echo Running Drake.py...
 set PYTHONIOENCODING=utf-8
+set OPENCV_OPENCL_DEVICE=AMD:GPU:0
 py -3.12-32 Drake.py
 
 :: Check if the Python script requested a restart (exit code 5)

@@ -237,7 +237,16 @@ def find_and_engage_monster(dm):
         find_and_engage_monster.last_dead_check = current_time
         check_dead_mercenary(dm)
 
-    (_, x, y) = dm.FindPic(96, 84, 964, 600, MONSTER_IMAGES, '050505', 0.8, 0)
+    # GPU OpenCL UMat monster search (falls back to dm.FindPic automatically)
+    _gpu_root = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(5):
+        if os.path.exists(os.path.join(_gpu_root, 'gpu_accel.py')):
+            if _gpu_root not in sys.path:
+                sys.path.insert(0, _gpu_root)
+            break
+        _gpu_root = os.path.dirname(_gpu_root)
+    from gpu_accel import find_monster_gpu
+    x, y = find_monster_gpu(dm, MONSTER_IMAGES, [(96, 84, 964, 600)], threshold=0.80)
     if x <= 0:
         current_time_check = time.time()
         if current_time_check - last_monster_seen_time > 2.5:
